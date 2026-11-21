@@ -1,0 +1,11 @@
+Model Information:
+* title:	Sushi Restaurant
+* source:	https://sketchfab.com/3d-models/sushi-restaurant-7541fd7653124acea675916a81e6df03
+* author:	AlemanGame (https://sketchfab.com/aleman23gamer)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sushi Restaurant" (https://sketchfab.com/3d-models/sushi-restaurant-7541fd7653124acea675916a81e6df03) by AlemanGame (https://sketchfab.com/aleman23gamer) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
