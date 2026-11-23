@@ -14,9 +14,7 @@ const sizes = {
 }
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-
-const signList = [];
-
+let street = null;
 
 // Camera settings
 const FOV = 68
@@ -31,23 +29,24 @@ const roadStart = 90
 const roadEnd = 2255
 const roadLen = roadEnd - roadStart
 
-// Mouse vars
+// Movement vars
 let isDragging = false;
+let dragged = false;
+let isNavMove = false
 let lastXPos = 0;
 
 // Locations
 const locations ={
-
+    
     start: 327,                             // navTo("start")
     projects: 596,                      // navTo("projects")
     experience: 858,                 // navTo("experience")
     skills: 1125,                            // navTo("skills")
-    about_Me: 1385,                 // navTo("about_Me")    
-    tools_Platforms: 1575,         // navTo("tools_Platforms")
-    contact_Me: 1610,               // navTo("contact_Me")
-    coming_Soon: 1925           // navTo("coming_Soon")
+    about: 1385,                 // navTo("about")    
+    tools_platforms: 1575,         // navTo("tools_platforms")
+    contact: 1610,               // navTo("contact")
+    more_coming: 1925           // navTo("more_coming")
 }
-
 
 // Three JS setup 
 const scene = new THREE.Scene()
@@ -64,6 +63,8 @@ const forward = new THREE.Vector3(
 // Wheel scrolling
 window.addEventListener("wheel", (e) =>{
 
+    if(isNavMove) return;
+
     e.preventDefault()
     targetCamPos += e.deltaY * 0.3;
 
@@ -75,6 +76,9 @@ window.addEventListener("wheel", (e) =>{
 // Immediate Mouse/touch click
 window.addEventListener("pointerdown", (e) => {
 
+    if(isNavMove) return;
+
+    dragged = false
     isDragging = true;
     lastXPos = e.clientX;
 });
@@ -82,7 +86,15 @@ window.addEventListener("pointerdown", (e) => {
 // Mouse/touch move
 window.addEventListener("pointermove", (e) => {
 
+    if(isNavMove) return;
+
     if (!isDragging) return;
+    if(Math.abs(delta) > 3){
+
+        dragged = true;
+    }
+
+    if (!street || dragged) return;
 
     const delta = lastXPos - e.clientX;
 
@@ -102,29 +114,37 @@ window.addEventListener("pointerup", (e) => {
 
 // Mouse click
 window.addEventListener("click", (e) =>{
+    if (!street) return;
 
     // Convert coords into three coords
     mouse.x = (e.clientX / sizes.width) * 2-1;
-    mouse.y = (e.clientY / sizes.height) * 2+1;
+    mouse.y = -(e.clientY / sizes.height) * 2+1;
 
     // Create raycast and check collision
     raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects(signList, true);
+    const hits = raycaster.intersectObject(street, true);
 
-    if (hits.length > 0) {
+    if(!hits.length) return;
 
-        // Get the group that contains the clicked mesh
-        let clickedObject = hits[0].object;
+    // Get clicked object
+    let obj = hits[0].object;
+    while (obj){
 
-        while (clickedObject.parent && !signList.includes(clickedObject)) {
-            clickedObject = clickedObject.parent;
+        const place = Object.keys(locations).find(k => obj.name.toLowerCase().startsWith(k));
+
+        if (place){ 
+            navTo(place); 
+
+        break; 
         }
-
-        console.log("Clicked sign:", clickedObject.name);
+        obj = obj.parent;
+    }
 });
 
 // Arrow keys
 window.addEventListener("keydown", (e) => {
+
+    if(isNavMove) return;
 
     if (e.key === "ArrowRight") {
         targetCamPos += 10;
@@ -171,24 +191,8 @@ sun.position.set(100, 200, 80);
 scene.add(skyFill, sun);
 
 // Load main street
-gltfLoader.load('/world_models/Main_street.glb', ({ scene: street }) => {
-
-    street.traverse((obj) =>{
-
-        if(
-            obj.name === "Projects_Sign" ||
-            obj.name === "Experience_Sign" ||
-            obj.name === "skills_Sign" ||
-            obj.name === "About_me_Sign" ||
-            obj.name === "Contact_Sign" ||
-            obj.name === "More_coming_Sign"
-        )
-        {
-            signList.push(obj);
-            console.log("Clcikd", obj.name, obj.type)
-        }
-    });
-
+gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
+    street = gltf.scene;
     scene.add(street);
 });
 
@@ -210,8 +214,14 @@ render()
 
 window.navTo = function(location){
 
-    targetCamPos = locations[location]
-    console.log("moving")
+    if(!(location in locations)){
+
+        console.warn("No location for:", location);
+        return;
+    }
+
+    targetCamPos = locations[location];
+    console.log("moving");
 }
 
 // HELPERS ----------------------------------------------------------
