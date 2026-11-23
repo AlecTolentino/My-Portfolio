@@ -12,6 +12,11 @@ const sizes = {
     width: window.innerWidth,
     height: window.innerHeight
 }
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+const signList = [];
+
 
 // Camera settings
 const FOV = 68
@@ -31,6 +36,18 @@ let isDragging = false;
 let lastXPos = 0;
 
 // Locations
+const locations ={
+
+    start: 327,                             // navTo("start")
+    projects: 596,                      // navTo("projects")
+    experience: 858,                 // navTo("experience")
+    skills: 1125,                            // navTo("skills")
+    about_Me: 1385,                 // navTo("about_Me")    
+    tools_Platforms: 1575,         // navTo("tools_Platforms")
+    contact_Me: 1610,               // navTo("contact_Me")
+    coming_Soon: 1925           // navTo("coming_Soon")
+}
+
 
 // Three JS setup 
 const scene = new THREE.Scene()
@@ -48,21 +65,21 @@ const forward = new THREE.Vector3(
 window.addEventListener("wheel", (e) =>{
 
     e.preventDefault()
-    targetCamPos += e.deltaY * 0.5;
+    targetCamPos += e.deltaY * 0.3;
 
     // Prevent leaving street
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
     
 }, {passive:false});
 
-// Mouse click
+// Immediate Mouse/touch click
 window.addEventListener("pointerdown", (e) => {
 
     isDragging = true;
     lastXPos = e.clientX;
 });
 
-// Mouse move
+// Mouse/touch move
 window.addEventListener("pointermove", (e) => {
 
     if (!isDragging) return;
@@ -77,10 +94,33 @@ window.addEventListener("pointermove", (e) => {
     lastXPos = e.clientX;
 });
 
-// Mouse release
+// Immediate Mouse/touch release
 window.addEventListener("pointerup", (e) => {
 
     isDragging = false;
+});
+
+// Mouse click
+window.addEventListener("click", (e) =>{
+
+    // Convert coords into three coords
+    mouse.x = (e.clientX / sizes.width) * 2-1;
+    mouse.y = (e.clientY / sizes.height) * 2+1;
+
+    // Create raycast and check collision
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(signList, true);
+
+    if (hits.length > 0) {
+
+        // Get the group that contains the clicked mesh
+        let clickedObject = hits[0].object;
+
+        while (clickedObject.parent && !signList.includes(clickedObject)) {
+            clickedObject = clickedObject.parent;
+        }
+
+        console.log("Clicked sign:", clickedObject.name);
 });
 
 // Arrow keys
@@ -133,20 +173,33 @@ scene.add(skyFill, sun);
 // Load main street
 gltfLoader.load('/world_models/Main_street.glb', ({ scene: street }) => {
 
-    const streetBounds = new THREE.Box3().setFromObject(street);
-    //console.log("bounds", streetBounds)
+    street.traverse((obj) =>{
 
-    scene.add(street)
+        if(
+            obj.name === "Projects_Sign" ||
+            obj.name === "Experience_Sign" ||
+            obj.name === "skills_Sign" ||
+            obj.name === "About_me_Sign" ||
+            obj.name === "Contact_Sign" ||
+            obj.name === "More_coming_Sign"
+        )
+        {
+            signList.push(obj);
+            console.log("Clcikd", obj.name, obj.type)
+        }
+    });
+
+    scene.add(street);
 });
 
 // Render objects
 function render(){
-
-    curCamPos += (targetCamPos - curCamPos) * 0.08;
-
-    camera.position.set(220, 72, -curCamPos);
+    
+    // Udpate camera pos
+    curCamPos += (targetCamPos - curCamPos) * 0.08
+    camera.position.set(210, 72, -curCamPos);
+    
     const lookTarget = camera.position.clone().addScaledVector(forward, 100);
-
     camera.lookAt(lookTarget);
 
     renderer.render(scene, camera);
@@ -155,3 +208,24 @@ function render(){
 
 render()
 
+window.navTo = function(location){
+
+    targetCamPos = locations[location]
+    console.log("moving")
+}
+
+// HELPERS ----------------------------------------------------------
+
+// Check camera pos
+// let lastLoggedPos = -1;
+
+// setInterval(() => {
+//     const roundedPos = Math.round(curCamPos);
+
+//     if (roundedPos !== lastLoggedPos) {
+
+//         console.log("Camera:", roundedPos);
+//         lastLoggedPos = roundedPos;
+//     }
+
+// }, 1000);
