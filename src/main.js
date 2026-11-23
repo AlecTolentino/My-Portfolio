@@ -33,6 +33,9 @@ const roadLen = roadEnd - roadStart
 let isDragging = false;
 let dragged = false;
 let isNavMove = false
+
+// Pointer positions
+let startX = 0
 let lastXPos = 0;
 
 // Locations
@@ -63,9 +66,10 @@ const forward = new THREE.Vector3(
 // Wheel scrolling
 window.addEventListener("wheel", (e) =>{
 
+    // Prevent unecessary movement
+    e.preventDefault()
     if(isNavMove) return;
 
-    e.preventDefault()
     targetCamPos += e.deltaY * 0.3;
 
     // Prevent leaving street
@@ -76,25 +80,26 @@ window.addEventListener("wheel", (e) =>{
 // Immediate Mouse/touch click
 window.addEventListener("pointerdown", (e) => {
 
+    // Prevent unecessary movement
     if(isNavMove) return;
 
     dragged = false
     isDragging = true;
+
+    startX = e.clientX;  
     lastXPos = e.clientX;
 });
 
 // Mouse/touch move
 window.addEventListener("pointermove", (e) => {
 
-    if(isNavMove) return;
+    // Prevent unecessary movement
+    if(isNavMove || !isDragging) return;
 
-    if (!isDragging) return;
-    if(Math.abs(delta) > 3){
+    if(Math.abs(e.clientX - startX) > 3){
 
         dragged = true;
-    }
-
-    if (!street || dragged) return;
+    };
 
     const delta = lastXPos - e.clientX;
 
@@ -114,7 +119,9 @@ window.addEventListener("pointerup", (e) => {
 
 // Mouse click
 window.addEventListener("click", (e) =>{
-    if (!street) return;
+
+    // Prevent uncessary movement
+    if (!street || dragged || isNavMove) return;
 
     // Convert coords into three coords
     mouse.x = (e.clientX / sizes.width) * 2-1;
@@ -144,6 +151,7 @@ window.addEventListener("click", (e) =>{
 // Arrow keys
 window.addEventListener("keydown", (e) => {
 
+    // Prevent uncessary movement
     if(isNavMove) return;
 
     if (e.key === "ArrowRight") {
@@ -184,7 +192,7 @@ dracoLoader.setDecoderPath("/draco/");
 const gltfLoader = new GLTFLoader()
 gltfLoader.setDRACOLoader(dracoLoader);
 
-///////// TEMP DAYLIGHT 
+// TEMP DAYLIGHT  ------------------------------------------------------------------------------------
 const skyFill = new THREE.HemisphereLight(0xeaf4ff, 0x77717a, 1.3);
 const sun = new THREE.DirectionalLight(0xfff1df, 1.8);
 sun.position.set(100, 200, 80);
@@ -201,6 +209,9 @@ function render(){
     
     // Udpate camera pos
     curCamPos += (targetCamPos - curCamPos) * 0.08
+
+    // give control back (temproary) 
+    if (isNavMove && Math.abs(targetCamPos - curCamPos) < 10) isNavMove = false;   // TEMP: remove once signs open buildings
     camera.position.set(210, 72, -curCamPos);
     
     const lookTarget = camera.position.clone().addScaledVector(forward, 100);
@@ -220,8 +231,8 @@ window.navTo = function(location){
         return;
     }
 
+    isNavMove = true;   
     targetCamPos = locations[location];
-    console.log("moving");
 }
 
 // HELPERS ----------------------------------------------------------
