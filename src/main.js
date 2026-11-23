@@ -6,23 +6,64 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import './style.scss'
 
 const canvas = document.querySelector("#experience-canvas")
+
+// MAIN VARS  ------------------------------------------------------------------------------------------------------------
 const sizes = {
 
     width: window.innerWidth,
     height: window.innerHeight
 }
 
+const FOV = 68
+const PITCH = THREE.MathUtils.degToRad(12);
+const YAW = THREE.MathUtils.degToRad(0.85);
+
+let  curCamPos = 315
+let targetCamPos = 315
+
 // Three JS setup 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xbfd8f0);
 
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 1000);
-camera.position.z = 5;
+const camera = new THREE.PerspectiveCamera(FOV, 1, 3, 850);
+const forward = new THREE.Vector3(
+    -Math.cos(PITCH) * Math.cos(YAW),
+    -Math.sin(PITCH),
+    -Math.cos(PITCH) * Math.sin(YAW)
+);
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true});
 
-// const camera = new THREE.PerspectiveCamera(60, sizes.width / sizes.height, 1, 3000);
-// const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
+// EVENT LISTENERS ------------------------------------------------------------------------------------------------------
+
+// Scrolling
+window.addEventListener("wheel", (e) =>{
+
+    e.preventDefault()
+    curCamPos += e.deltaY * 0.5;
+
+    // Prevent leaveing street
+    curCamPos = THREE.MathUtils.clamp(curCamPos, 90, 2255);
+    
+}, {passive:false});
+
+// Arro keys
+window.addEventListener("keydown", (e) => {
+
+    if (e.key === "ArrowRight") {
+        curCamPos += 10;
+    }
+
+    if (e.key === "ArrowLeft") {
+        curCamPos -= 10;
+    }
+    
+    // Prevent leaveing street
+    curCamPos = THREE.MathUtils.clamp(curCamPos, 90, 2255);
+    
+}, {passive:false});
+
+
+const renderer = new THREE.WebGLRenderer({canvas, antialias: true, logarithmicDepthBuffer: true});
 
 // Resize display port
 function resize(){
@@ -39,11 +80,6 @@ function resize(){
 
 resize();
 window.addEventListener("resize", resize)
-
-// Orbit control setup
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
 
 // Loaders
 const dracoLoader = new DRACOLoader();
@@ -68,7 +104,13 @@ gltfLoader.load('/world_models/Main_street.glb',
 // Render objects
 function render(){
 
-    controls.update();
+    curCamPos += (targetCamPos - curCamPos) * 0.08;
+
+    camera.position.set(220, 72, -curCamPos);
+    const lookTarget = camera.position.clone().addScaledVector(forward, 100);
+
+    camera.lookAt(lookTarget);
+
     renderer.render(scene, camera);
     requestAnimationFrame(render);
 }

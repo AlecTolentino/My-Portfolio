@@ -23,11 +23,13 @@
   width: 100%;
   top: 0;
   left: 0;
-  overflow: hidden;;
+  overflow: hidden;
 
   #experience-canvas{
     
     height: 100%;
     width: 100%;
+    display: block;
+    touch-action: pan-y;
   }
 }
