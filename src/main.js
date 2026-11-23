@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
@@ -14,12 +13,24 @@ const sizes = {
     height: window.innerHeight
 }
 
+// Camera settings
 const FOV = 68
 const PITCH = THREE.MathUtils.degToRad(12);
 const YAW = THREE.MathUtils.degToRad(0.85);
 
 let  curCamPos = 315
 let targetCamPos = 315
+
+// Road vars
+const roadStart = 90
+const roadEnd = 2255
+const roadLen = roadEnd - roadStart
+
+// Mouse vars
+let isDragging = false;
+let lastXPos = 0;
+
+// Locations
 
 // Three JS setup 
 const scene = new THREE.Scene()
@@ -32,36 +43,61 @@ const forward = new THREE.Vector3(
     -Math.cos(PITCH) * Math.sin(YAW)
 );
 
-
 // EVENT LISTENERS ------------------------------------------------------------------------------------------------------
-
-// Scrolling
+// Wheel scrolling
 window.addEventListener("wheel", (e) =>{
 
     e.preventDefault()
-    curCamPos += e.deltaY * 0.5;
+    targetCamPos += e.deltaY * 0.5;
 
-    // Prevent leaveing street
-    curCamPos = THREE.MathUtils.clamp(curCamPos, 90, 2255);
+    // Prevent leaving street
+    targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
     
 }, {passive:false});
 
-// Arro keys
+// Mouse click
+window.addEventListener("pointerdown", (e) => {
+
+    isDragging = true;
+    lastXPos = e.clientX;
+});
+
+// Mouse move
+window.addEventListener("pointermove", (e) => {
+
+    if (!isDragging) return;
+
+    const delta = lastXPos - e.clientX;
+
+    // Move camera
+    targetCamPos += delta * 0.3;
+    
+    // Prevent leaving street
+    targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
+    lastXPos = e.clientX;
+});
+
+// Mouse release
+window.addEventListener("pointerup", (e) => {
+
+    isDragging = false;
+});
+
+// Arrow keys
 window.addEventListener("keydown", (e) => {
 
     if (e.key === "ArrowRight") {
-        curCamPos += 10;
+        targetCamPos += 10;
     }
 
     if (e.key === "ArrowLeft") {
-        curCamPos -= 10;
+        targetCamPos -= 10;
     }
-    
-    // Prevent leaveing street
-    curCamPos = THREE.MathUtils.clamp(curCamPos, 90, 2255);
+
+    // Prevent leaving street
+    targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
     
 }, {passive:false});
-
 
 const renderer = new THREE.WebGLRenderer({canvas, antialias: true, logarithmicDepthBuffer: true});
 
@@ -95,11 +131,13 @@ sun.position.set(100, 200, 80);
 scene.add(skyFill, sun);
 
 // Load main street
-gltfLoader.load('/world_models/Main_street.glb',
+gltfLoader.load('/world_models/Main_street.glb', ({ scene: street }) => {
 
-    ({ scene: street }) => scene.add(street),undefined,
-    (error) => console.error('Could not load Main Street:', error)
-);
+    const streetBounds = new THREE.Box3().setFromObject(street);
+    //console.log("bounds", streetBounds)
+
+    scene.add(street)
+});
 
 // Render objects
 function render(){
