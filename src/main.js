@@ -20,7 +20,6 @@ let street = null;
 const FOV = 68
 const PITCH = THREE.MathUtils.degToRad(12);
 const YAW = THREE.MathUtils.degToRad(0.85);
-
 let  curCamPos = 315
 let targetCamPos = 315
 
@@ -40,15 +39,19 @@ let lastXPos = 0;
 
 // Locations
 const locations ={
-    
-    start: 327,                             // navTo("start")
-    projects: 596,                      // navTo("projects")
-    experience: 858,                 // navTo("experience")
-    skills: 1125,                            // navTo("skills")
-    about: 1385,                 // navTo("about")    
-    tools_platforms: 1575,         // navTo("tools_platforms")
-    contact: 1610,               // navTo("contact")
-    more_coming: 1925           // navTo("more_coming")
+    start: 327,                           
+    projects: 596,                 
+    experience: 858,                 
+    skills: 1125,                    
+    about: 1385,             
+    tools_platforms: 1575,         
+    contact: 1610,              
+    more_coming: 1925          
+}
+
+const socials = {
+    "Github":  "https://github.com/AlecTolentino",
+    "Linkedln": "www.linkedin.com/in/alec-tolentino-bd2004",
 }
 
 // Three JS setup 
@@ -64,7 +67,6 @@ const forward = new THREE.Vector3(
 
 // RAYCASTING -----------------------------------------------------------------------------------------------------------
 const RAY_TAG = "_Raycaster";
-
 const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
 
 // Find raycast object
@@ -111,6 +113,13 @@ window.addEventListener("pointerdown", (e) => {
 // Mouse/touch move
 window.addEventListener("pointermove", (e) => {
 
+    // Hover detection
+    if(street && !isDragging && !isNavMove){
+
+        const target = detectHover(e);
+        document.body.style.cursor = target ? "pointer" : "default";
+    }
+
     // Prevent unecessary movement
     if(isNavMove || !isDragging) return;
 
@@ -121,10 +130,8 @@ window.addEventListener("pointermove", (e) => {
 
     const delta = lastXPos - e.clientX;
 
-    // Move camera
+    // Move camera + Prevent leaving street
     targetCamPos += delta * 0.3;
-    
-    // Prevent leaving street
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
     lastXPos = e.clientX;
 });
@@ -133,33 +140,23 @@ window.addEventListener("pointermove", (e) => {
 window.addEventListener("pointerup", (e) => {
 
     isDragging = false;
-});
 
-// Mouse click
-window.addEventListener("click", (e) =>{
-
-    // Prevent uncessary movement
-    if (!street || dragged || isNavMove) return;
-
-    // Convert coords into three coords
-    mouse.x = (e.clientX / sizes.width) * 2-1;
-    mouse.y = -(e.clientY / sizes.height) * 2+1;
-
-    // Create raycast and check collision
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObject(street, true);
-
-    if(!hits.length) return;
-
-    // Find raycast object
-    const target = getRayTarget(hits[0].object);
+    // Click / tap if no drag
+    if(!street || dragged || isNavMove) return;
+    
+    const target = detectHover(e);
     if(!target) return;
 
-    // Get raycast object name
     const name = target.name.toLowerCase();
     const loc = locationKeys.find(k => name.startsWith(k));
 
-    if(loc) navTo(loc);
+    if (loc) navTo(loc);
+});
+
+// Drag reset for touch
+window.addEventListener("pointercancel", () => {
+    isDragging = false;
+    dragged = false;
 });
 
 // Arrow keys
@@ -181,29 +178,34 @@ window.addEventListener("keydown", (e) => {
     
 }, {passive:false});
 
+// VISUALS ----------------------------------------------------------------------------------------------------
+
 const renderer = new THREE.WebGLRenderer({canvas, antialias: true, logarithmicDepthBuffer: true});
 
 // Resize display port
 function resize(){
 
-    sizes.width = window.innerWidth
-    sizes.height = window.innerHeight
+    const rect = canvas.getBoundingClientRect();
 
-    camera.aspect = sizes.width / sizes.height
+    sizes.width = rect.width;
+    sizes.height = rect.height;
+
+    camera.aspect = sizes.width / sizes.height;
     camera.updateProjectionMatrix();
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio))
-    renderer.setSize(sizes.width, sizes.height);
-}
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio));
+    renderer.setSize(sizes.width, sizes.height, false);
+};
 
 resize();
-window.addEventListener("resize", resize)
+window.addEventListener("resize", resize);
+window.visualViewport?.addEventListener("resize", resize);
 
 // Loaders
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath("/draco/");
 
-const gltfLoader = new GLTFLoader()
+const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
 // TEMP DAYLIGHT  ------------------------------------------------------------------------------------
@@ -212,7 +214,7 @@ const sun = new THREE.DirectionalLight(0xfff1df, 1.8);
 sun.position.set(100, 200, 80);
 scene.add(skyFill, sun);
 
-// Load main street
+// Load main street ------------------------------------------------------------------------------------
 gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
     street = gltf.scene;
     scene.add(street);
@@ -222,7 +224,7 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 function render(){
     
     // Udpate camera pos
-    curCamPos += (targetCamPos - curCamPos) * 0.08
+    curCamPos += (targetCamPos - curCamPos) * 0.08;
 
     // give control back (temproary) 
     if (isNavMove && Math.abs(targetCamPos - curCamPos) < 10) isNavMove = false;   // TEMP: remove once signs open buildings
@@ -233,23 +235,41 @@ function render(){
 
     renderer.render(scene, camera);
     requestAnimationFrame(render);
-}
+};
 
-render()
+render();
 
+
+// HELPERS ----------------------------------------------------------
+// Move camera to locations
 window.navTo = function(location){
 
     if(!(location in locations)){
-
         console.warn("No location for:", location);
         return;
     }
 
+    document.body.style.cursor = "default";
     isNavMove = true;   
     targetCamPos = locations[location];
-}
+};
 
-// HELPERS ----------------------------------------------------------
+// Detect mouse hover over clickable object
+function detectHover(e){
+
+    const rect = canvas.getBoundingClientRect();
+
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(street, true);
+
+    if(!hits.length) return null;
+
+    return getRayTarget(hits[0].object);
+};
+
 
 // Check camera pos
 // let lastLoggedPos = -1;
@@ -264,3 +284,8 @@ window.navTo = function(location){
 //     }
 
 // }, 1000);
+
+
+// 7:29:12,
+// 7:40: 12 socials
+// 7:56;00fonts
