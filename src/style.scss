@@ -14,22 +14,26 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-// Experience
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
 
+// Experience
 #experience{
 
   position: fixed;
+  inset: 0;
   height: 100%;
   width: 100%;
-  top: 0;
-  left: 0;
   overflow: hidden;
 
-  #experience-canvas{
-    
-    height: 100%;
-    width: 100%;
-    display: block;
-    touch-action: none;
+  #experience-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
   }
 }
