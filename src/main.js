@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
+
 import './style.scss'
 
 const canvas = document.querySelector("#experience-canvas")
@@ -268,7 +269,6 @@ function detectHover(e){
 
     return hits[0].object.userData.target;
 };
-
 
 // Check camera pos
 // let lastLoggedPos = -1;
