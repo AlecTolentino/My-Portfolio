@@ -63,7 +63,7 @@ const forward = new THREE.Vector3(
 );
 
 // RAYCASTING -----------------------------------------------------------------------------------------------------------
-const RAY_TAG = "Raycaster";
+const RAY_TAG = "_Raycaster";
 
 const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
 
