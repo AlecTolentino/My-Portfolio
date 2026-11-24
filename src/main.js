@@ -223,10 +223,10 @@ function render(){
 
 render()
 
+// Move camera to locations
 window.navTo = function(location){
 
     if(!(location in locations)){
-
         console.warn("No location for:", location);
         return;
     }
