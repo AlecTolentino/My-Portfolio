@@ -172,24 +172,24 @@ const renderer = new THREE.WebGLRenderer({canvas, antialias: true, logarithmicDe
 // Resize display port
 function resize(){
 
-    sizes.width = window.innerWidth
-    sizes.height = window.innerHeight
+    sizes.width = window.innerWidth;
+    sizes.height = window.innerHeight;
 
-    camera.aspect = sizes.width / sizes.height
+    camera.aspect = sizes.width / sizes.height;
     camera.updateProjectionMatrix();
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio))
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio));
     renderer.setSize(sizes.width, sizes.height);
-}
+};
 
 resize();
-window.addEventListener("resize", resize)
+window.addEventListener("resize", resize);
 
 // Loaders
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath("/draco/");
 
-const gltfLoader = new GLTFLoader()
+const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
 // TEMP DAYLIGHT  ------------------------------------------------------------------------------------
@@ -208,7 +208,7 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 function render(){
     
     // Udpate camera pos
-    curCamPos += (targetCamPos - curCamPos) * 0.08
+    curCamPos += (targetCamPos - curCamPos) * 0.08;
 
     // give control back (temproary) 
     if (isNavMove && Math.abs(targetCamPos - curCamPos) < 10) isNavMove = false;   // TEMP: remove once signs open buildings
@@ -219,9 +219,9 @@ function render(){
 
     renderer.render(scene, camera);
     requestAnimationFrame(render);
-}
+};
 
-render()
+render();
 
 // Move camera to locations
 window.navTo = function(location){
@@ -233,7 +233,7 @@ window.navTo = function(location){
 
     isNavMove = true;   
     targetCamPos = locations[location];
-}
+};
 
 // HELPERS ----------------------------------------------------------
 
