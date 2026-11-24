@@ -62,6 +62,24 @@ const forward = new THREE.Vector3(
     -Math.cos(PITCH) * Math.sin(YAW)
 );
 
+// RAYCASTING -----------------------------------------------------------------------------------------------------------
+const RAY_TAG = "Raycaster";
+
+const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
+
+// Find raycast object
+function getRayTarget(obj){
+
+    while(obj){
+        if(obj.name.endsWith(RAY_TAG)){
+            return obj;
+        }
+
+        obj = obj.parent
+    }
+    return null;
+}
+
 // EVENT LISTENERS ------------------------------------------------------------------------------------------------------
 // Wheel scrolling
 window.addEventListener("wheel", (e) =>{
@@ -133,19 +151,15 @@ window.addEventListener("click", (e) =>{
 
     if(!hits.length) return;
 
-    // Get clicked object
-    let obj = hits[0].object;
-    while (obj){
+    // Find raycast object
+    const target = getRayTarget(hits[0].object);
+    if(!target) return;
 
-        const place = Object.keys(locations).find(k => obj.name.toLowerCase().startsWith(k));
+    // Get raycast object name
+    const name = target.name.toLowerCase();
+    const loc = locationKeys.find(k => name.startsWith(k));
 
-        if (place){ 
-            navTo(place); 
-
-        break; 
-        }
-        obj = obj.parent;
-    }
+    if(loc) navTo(loc);
 });
 
 // Arrow keys
