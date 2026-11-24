@@ -16,6 +16,8 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 let street = null;
 
+const rayCastObjects = [];
+
 // Camera settings
 const FOV = 68
 const PITCH = THREE.MathUtils.degToRad(12);
@@ -51,8 +53,8 @@ const locations ={
 
 const socials = {
     "Github":  "https://github.com/AlecTolentino",
-    "Linkedln": "www.linkedin.com/in/alec-tolentino-bd2004",
-}
+    "Linkedin": "https://www.linkedin.com/in/alec-tolentino-bd2004",
+};
 
 // Three JS setup 
 const scene = new THREE.Scene()
@@ -65,22 +67,8 @@ const forward = new THREE.Vector3(
     -Math.cos(PITCH) * Math.sin(YAW)
 );
 
-// RAYCASTING -----------------------------------------------------------------------------------------------------------
-const RAY_TAG = "_Raycaster";
+// raycasting
 const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
-
-// Find raycast object
-function getRayTarget(obj){
-
-    while(obj){
-        if(obj.name.endsWith(RAY_TAG)){
-            return obj;
-        }
-
-        obj = obj.parent
-    }
-    return null;
-}
 
 // EVENT LISTENERS ------------------------------------------------------------------------------------------------------
 // Wheel scrolling
@@ -114,7 +102,7 @@ window.addEventListener("pointerdown", (e) => {
 window.addEventListener("pointermove", (e) => {
 
     // Hover detection
-    if(street && !isDragging && !isNavMove){
+    if(street && !isDragging && !isNavMove && e.pointerType !== "touch"){
 
         const target = detectHover(e);
         document.body.style.cursor = target ? "pointer" : "default";
@@ -126,7 +114,7 @@ window.addEventListener("pointermove", (e) => {
     if(Math.abs(e.clientX - startX) > 3){
 
         dragged = true;
-    };
+    }
 
     const delta = lastXPos - e.clientX;
 
@@ -217,6 +205,17 @@ scene.add(skyFill, sun);
 // Load main street ------------------------------------------------------------------------------------
 gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
     street = gltf.scene;
+
+    // Remember clickable items
+    street.traverse((child) => {
+
+        if(child.name.includes("Raycaster")){
+
+            rayCastObjects.push(child);
+            child.traverse((part) => {part.userData.target = child;});
+        }
+    });
+
     scene.add(street);
 });
 
@@ -263,11 +262,11 @@ function detectHover(e){
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObject(street, true);
+    const hits = raycaster.intersectObject(rayCastObjects, true);
 
     if(!hits.length) return null;
 
-    return getRayTarget(hits[0].object);
+    return hits[0].object.userData.target;
 };
 
 
@@ -288,4 +287,4 @@ function detectHover(e){
 
 // 7:29:12,
 // 7:40: 12 socials
-// 7:56;00fonts
+// 7:56;00 fonts
