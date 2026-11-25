@@ -4,15 +4,15 @@ import gsap from 'gsap';
 
 // MAIN VARS
 const HOVER_TAG = "Hover";
-const MAX_SPARKS = 50;
+const MAX_SPARKS = 100;
 
 // Sign vars
 const SIGN = {
     neonBoost: 1.0,
     faceTint: 0.28,             // Brightness increase for non-neon surfaces
     halo: 0.6,
-    sparkRate: 10,
-    sparkBurst: 14              // Sparks generated immediately on hover
+    sparkRate: 70,
+    sparkBurst: 45              // Sparks generated immediately on hover
 };
 
 // Building vars
