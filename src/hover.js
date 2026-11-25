@@ -21,12 +21,12 @@ const BUILDING = {
 };
 
 // Assigns animation to sign 
-const isSign = (n) => n.includes('_Button_Raycaster') || n.includes('_Sign_') || n.includes('Site_Board');;
+const isSign = (n) => n.includes('_Button_Raycaster') || n.includes('_Sign_') || n.includes('Site_Board');
 
 // Objects with suffix shouldn't move
 const isStand = (n) =>  /_Stand$/.test(n);
 
-// HELPERS -------------------------------------------------------------
+// HELPERS -------------------------------------------------------------------------------------------------------------
 
 // Create glow texture
 function createGlowTexture(inner = 'rgba(255,255,255,1)', mid = 'rgba(255,255,255,0.35)'){
@@ -56,15 +56,14 @@ function createGlowTexture(inner = 'rgba(255,255,255,1)', mid = 'rgba(255,255,25
     return texture;
 };
 
-// Find object z-axis
-function findZAxis(obj){
+// Find object vertical-axis
+function findUpAxis(obj){
 
     // Get object rotation
     const worldRotation = obj.getWorldQuaternion(new THREE.Quaternion());
 
-    // Default to Y + how close to z
-    let bestAxis = 1;
-    let bestDot = -1;
+    // Default to Y + closest alignment
+    let bestAxis = 1, bestDot = -1;
 
     // Check axes
     ['x', 'y', 'z'].forEach((_, index) => {
@@ -75,9 +74,70 @@ function findZAxis(obj){
         // Compare against y axis
         if(Math.abs(axis.y) > bestDot){
 
-            // Store z axis (closest)
+            // Store vertical axis (closest)
             bestDot = Math.abs(axis.y);
             bestAxis = index;
         }
-    }
+    });
+
+    return bestAxis;
 };
+
+// Check if invisible hitbox
+const isHitBox = (obj) => {
+    return obj.name.includes('_Hitbox');
+};
+
+// Get relevant object messhes
+function getMeshes(obj, meshes = []){
+
+    // Check if obj is mesh
+    if(obj.isMesh && !isHitBox(obj)){
+        meshes.push(obj);
+    }
+
+        // Go through every child of the current object.
+    obj.children.forEach((child) => {
+
+        // in the animated object's bounding box.
+        if (!isStand(child.name)) {
+
+            // Recursively check  child and children.
+            getMeshes(child, meshes);
+        }
+    });
+
+    return meshes;
+};
+
+// Calculate bounding box of object mesh
+// Calculate scaling / effect positions
+function getBoundingBox(obj, worldSpace = false){
+
+    // Init bound box
+    const boundBox = new THREE.Box3();
+
+    // Determine coord space
+    const inverseMat = worldSpace ? new THREE.Matrix4() : obj.matrixWorld.clone().invert();
+
+    // Convert mesh coords
+    const meshMat = new THREE.Matrix4();
+
+    // Get all meshes in object
+    for(const mesh of getMeshes(obj)){
+
+        // Check if existing bound box
+        if(!mesh.geometry.boundingBox){
+            mesh.geometry.computeBoundingBox();
+        }
+
+        meshMat.multiplyMatrices(inverseMat, mesh.matrixWorld);
+
+        // Transform mesh bound box and merge into main box
+        boundBox.union(mesh.geometry.boundingBox.clone().applyMatrix4(meshMat));
+    }
+
+    return boundBox;
+};
+
+// MAIN HOVER FUNCTION ----------------------------------------------------------------------------------------
