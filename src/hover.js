@@ -1,18 +1,17 @@
-
 import * as THREE from 'three';
 import gsap from 'gsap';
 
 // MAIN VARS
 const HOVER_TAG = "Hover";
-const MAX_SPARKS = 50;
+const MAX_SPARKS = 100;
 
 // Sign vars
 const SIGN = {
     neonBoost: 1.0,
     faceTint: 0.28,             // Brightness increase for non-neon surfaces
     halo: 0.6,
-    sparkRate: 10,
-    sparkBurst: 14              // Sparks generated immediately on hover
+    sparkRate: 70,
+    sparkBurst: 45              // Sparks generated immediately on hover
 };
 
 // Building vars
@@ -21,8 +20,19 @@ const BUILDING = {
     faceTint: 0.22
 };
 
+// Idle sway vars 
+const SWAY = {
+    roll: THREE.MathUtils.degToRad(3),                          // swing angle
+    yaw: THREE.MathUtils.degToRad(2.5),                      // tiny twist on vertical axis
+    speed: 7,                                                                      // radians per second (0.9 = one swing about every 7 seconds)
+    range: 700                                                 
+};
+
 // Assigns animation to sign
 const isSign = (n) => n.includes('_Button_Raycaster') || n.includes('_Sign_') || n.includes('Site_Board');
+
+// Which signs may sway (the construction board is fixed to its fence, so it doesn't)
+const canSway = (n) => isSign(n) && !n.includes('Site_Board');
 
 // Objects with suffix shouldn't move
 const isStand = (n) => /_Stand$/.test(n);
@@ -153,11 +163,21 @@ export function createHover({scene, camera}){
     // Store obj with active animations
     const activeObjs = new Set();
 
+    // Signs that sway when idle
+    const swayRecords = [];
+    let swayTime = 0;                       // seconds, drives the sway waves
+
     // Time between frames
     let a_time = performance.now();
 
     // Vector to create new vecs
     const tempVec = new THREE.Vector3();
+
+    // Scratch objects for the sway maths (reused every frame so nothing is allocated)
+    const swayQuat = new THREE.Quaternion();
+    const swayQuatB = new THREE.Quaternion();
+    const swayVecA = new THREE.Vector3();
+    const swayVecB = new THREE.Vector3();
 
     // Create glow textures
     const HALO_TEX = createGlowTexture('rgba(255,255,255,0.9)', 'rgba(255,255,255,0.25)');
@@ -463,6 +483,19 @@ export function createHover({scene, camera}){
             pivot.setComponent(up, box.min.getComponent(up));
         }
 
+        // SWAY SETUP: the sign swings from the top-centre of its box (like it hangs from something)
+        const localSize = box.getSize(new THREE.Vector3());
+        const swayPivot = box.getCenter(new THREE.Vector3());
+        swayPivot.setComponent(up, box.max.getComponent(up));
+
+        // Of the two horizontal axes, the thinner one points out of the sign's face. Rolling about it
+        // makes the sign swing side to side in its own plane (a pendulum).
+        const sideAxes = [0, 1, 2].filter((a) => a !== up);
+        const faceAxis = localSize.getComponent(sideAxes[0]) < localSize.getComponent(sideAxes[1]) ? sideAxes[0] : sideAxes[1];
+
+        const rollVec = new THREE.Vector3().setComponent(faceAxis, 1);
+        const upVec = new THREE.Vector3().setComponent(up, 1);
+
         // Get world-space bounding box
         const worldBox = getBoundingBox(root, true);
 
@@ -494,8 +527,16 @@ export function createHover({scene, camera}){
             pivot,
             up,
 
-            // Animation state
-            state: {glow: 0, w: 1, h: 1, sparks: 0},
+            // Idle sway
+            canSway: sign && canSway(root.name),
+            swayPivot,
+            rollVec,
+            upVec,
+            swayPhase: Math.random() * Math.PI * 2,         // random start point so signs don't move in sync
+            swaySpeed: 0.8 + Math.random() * 0.4,           // each sign slightly different speed
+
+            // Animation state (sway: 1 = swaying fully, 0 = still, faded out while hovered)
+            state: {glow: 0, w: 1, h: 1, sparks: 0, sway: 1},
 
             // World-space dimensions
             wCenter: worldCentre,
@@ -552,7 +593,12 @@ export function createHover({scene, camera}){
         street.traverse((obj) =>{
 
             if(obj.name.includes(HOVER_TAG) && !hoverObjs.has(obj)){
-                hoverObjs.set(obj, buildRecord(obj));
+
+                const record = buildRecord(obj);
+                hoverObjs.set(obj, record);
+
+                // Remember which ones sway
+                if(record.canSway) swayRecords.push(record);
             }
         });
     }
@@ -565,6 +611,13 @@ export function createHover({scene, camera}){
         // Stop any previous animations
         gsap.killTweensOf(state);
         activeObjs.add(record);
+
+        // Fade the idle sway out so it doesn't fight the hover animation
+        gsap.to(state, {
+            sway: 0,
+            duration: 0.25,
+            ease: 'power2.out'
+        });
 
         // Animate glow
         gsap.timeline()
@@ -656,6 +709,13 @@ export function createHover({scene, camera}){
             ease: 'power2.out'
         });
 
+        // Ease the idle sway back in (slowly, so it drifts back rather than snapping)
+        gsap.to(state, {
+            sway: 1,
+            duration: 1.2,
+            ease: 'sine.inOut'
+        });
+
         // Return object to original size
         gsap.to(state, {
             w: 1,
@@ -744,12 +804,46 @@ export function createHover({scene, camera}){
             record.halo.position.copy(record.wCenter).addScaledVector(back, record.depth * 0.5 + 0.5);
         }
 
+        // IDLE SWAY: work out the small rotation for this moment
+        const sway = record.canSway ? state.sway : 0;
+
+        if(sway > 0.001){
+
+            // Two waves at different speeds layered together, so it isn't a perfect metronome
+            const t = swayTime * SWAY.speed * record.swaySpeed + record.swayPhase;
+
+            const roll = (Math.sin(t) + 0.4 * Math.sin(t * 2.3 + 1.3)) * SWAY.roll * sway;
+            const yaw = Math.sin(t * 0.7 + 2.0) * SWAY.yaw * sway;
+
+            // Combine the two small rotations into one
+            swayQuat.setFromAxisAngle(record.rollVec, roll);
+            swayQuatB.setFromAxisAngle(record.upVec, yaw);
+            swayQuat.multiply(swayQuatB);
+        }
+        else{
+            swayQuat.identity();
+        }
+
+        // Original rotation, then the sway on top
+        record.root.quaternion.copy(record.quat0).multiply(swayQuat);
+
         // Squash about the pivot: the local "up" axis gets h, the other two get w
         scaleVec.set(state.w, state.w, state.w).setComponent(record.up, state.h);
         record.root.scale.copy(record.scale0).multiply(scaleVec);
 
         offset.set(1, 1, 1).sub(scaleVec).multiply(record.pivot).multiply(record.scale0).applyQuaternion(record.quat0);
         record.root.position.copy(record.pos0).add(offset);
+
+        // Rotating moves the sign's top-centre, so shift the sign back so that point stays put (it swings FROM there)
+        if(sway > 0.001){
+
+            // Where the sway point sits (scaled) before and after rotating, in the parent's space
+            swayVecA.copy(record.swayPivot).multiply(record.root.scale);
+            swayVecB.copy(swayVecA).applyQuaternion(record.quat0);
+            swayVecA.applyQuaternion(record.root.quaternion);
+
+            record.root.position.add(swayVecB).sub(swayVecA);
+        }
 
         // Pinned children stay where they were in world space
         if(record.pinned.length){
@@ -776,9 +870,23 @@ export function createHover({scene, camera}){
 
         a_time = now;
 
+        // Clock for the sway waves
+        swayTime += dt;
+
         // Stop hover while camera is moving
         if(blocked && curHoverObj){
             setHoveredRecord(null);
+        }
+
+        // Idle sway: animate signs near the camera (ones in a hover animation are handled below)
+        const rangeSq = SWAY.range * SWAY.range;
+
+        for(const record of swayRecords){
+
+            if(activeObjs.has(record)) continue;
+            if(record.wCenter.distanceToSquared(camera.position) > rangeSq) continue;
+
+            applyRecord(record);
         }
 
         // Update active object animations
