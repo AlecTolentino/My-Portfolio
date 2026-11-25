@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-
+import {createHover} from './hover.js';
 
 import './style.scss'
 
@@ -71,6 +71,9 @@ const forward = new THREE.Vector3(
 // raycasting
 const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
 
+// Hover
+const hover = createHover({scene, camera});
+
 // EVENT LISTENERS ------------------------------------------------------------------------------------------------------
 // Wheel scrolling
 window.addEventListener("wheel", (e) =>{
@@ -106,6 +109,10 @@ window.addEventListener("pointermove", (e) => {
     if(street && !isDragging && !isNavMove && e.pointerType !== "touch"){
 
         const target = detectHover(e);
+
+        // Update hovered object
+        hover.setHovered(target);
+
         document.body.style.cursor = target ? "pointer" : "default";
     }
 
@@ -218,6 +225,7 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
     });
 
     scene.add(street);
+    hover.setStreet(street);
 });
 
 // Render objects
@@ -233,6 +241,9 @@ function render(){
     const lookTarget = camera.position.clone().addScaledVector(forward, 100);
     camera.lookAt(lookTarget);
 
+    // Update hover animations and particles
+    hover.update(isNavMove || (isDragging && dragged));
+    
     renderer.render(scene, camera);
     requestAnimationFrame(render);
 };
@@ -269,6 +280,7 @@ function detectHover(e){
 
     return hits[0].object.userData.target;
 };
+
 
 // Check camera pos
 // let lastLoggedPos = -1;
