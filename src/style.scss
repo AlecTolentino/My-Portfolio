@@ -19,6 +19,12 @@ html, body {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+
+     // No text selection, long-press menu or tap flash on touch screens
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 // Experience

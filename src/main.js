@@ -9,6 +9,10 @@ import './style.scss'
 const canvas = document.querySelector("#experience-canvas")
 canvas.style.touchAction = "none";
 
+// Stop text selection, the long-press menu and the magnifier loupe on touch screens
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+document.addEventListener("selectstart", (e) => e.preventDefault());
+
 // MAIN VARS  ------------------------------------------------------------------------------------------------------------
 const sizes = {
 
@@ -42,7 +46,7 @@ let isNavMove = false
 const HOVER_HOLD = 600;
 let hoverHoldUntil = 0;                     // timestamp until which hover may keep playing
 
-// hover animation plays) and then speeds up. Wheel / drag / keys still use the normal easing.
+// hover animation plays and then speeds up
 let navDest = 0;           
 const navTrip = {pos: 0};       
 const NAV_RELEASE = 10;                 // give control back this close to the destination
@@ -53,14 +57,14 @@ let lastXPos = 0;
 
 // Locations
 const locations ={
-    start: 327,
-    projects: 596,
-    experience: 858,
-    skills: 1125,
-    about: 1385,
+    start: 314,
+    projects: 592,
+    experience: 854,
+    skills: 1120,
+    about: 1390,
     tools_platforms: 1575,
-    contact: 1610,
-    more_coming: 1925
+    contact: 1605,
+    more_coming: 1927
 }
 
 const socials = {
@@ -289,6 +293,20 @@ function render(){
 render();
 
 // HELPERS ----------------------------------------------------------
+
+// Control cam movement
+const camEase = (t) => {
+
+     // the moment the speed up phase ends
+    const c = 0.4;   
+
+    if(t < c) return 0.5 * (t / c) ** 2;    
+
+     // 0 to 1 through the slow down phase
+    const s = (t - c) / (1 - c);           
+    return 0.5 + 0.5 * (1 - (1 - s) ** 3); 
+};
+
 // Move camera to locations
 window.navTo = function(location){
 
@@ -310,7 +328,7 @@ window.navTo = function(location){
     gsap.to(navTrip, {
         pos: navDest,
         duration,
-        ease: "power2.inOut",           // slow start, fast middle, soft landing
+        ease: camEase,           // slow start, fast middle, soft landing
 
         onUpdate: () => {
 
