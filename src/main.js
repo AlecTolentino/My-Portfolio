@@ -6,6 +6,7 @@ import {createHover} from './hover.js';
 import './style.scss'
 
 const canvas = document.querySelector("#experience-canvas")
+canvas.style.touchAction = "none";
 
 // MAIN VARS  ------------------------------------------------------------------------------------------------------------
 const sizes = {
@@ -141,12 +142,22 @@ window.addEventListener("pointerup", (e) => {
     if(!street || dragged || isNavMove) return;
     
     const target = detectHover(e);
+    if(e.pointerType === "touch"){
+
+        hover.setHovered(target);
+    }
+    
+    // Ignore if no click
     if(!target) return;
 
     const name = target.name.toLowerCase();
     const loc = locationKeys.find(k => name.startsWith(k));
 
-    if (loc) navTo(loc);
+    if(loc){
+
+        hover.setHovered(null);
+        navTo(loc);
+    }
 });
 
 // Drag reset for touch
@@ -161,11 +172,11 @@ window.addEventListener("keydown", (e) => {
     // Prevent uncessary movement
     if(isNavMove) return;
 
-    if (e.key === "ArrowRight") {
+    if(e.key === "ArrowRight") {
         targetCamPos += 10;
     }
 
-    if (e.key === "ArrowLeft") {
+    if(e.key === "ArrowLeft") {
         targetCamPos -= 10;
     }
 
@@ -235,7 +246,7 @@ function render(){
     curCamPos += (targetCamPos - curCamPos) * 0.08;
 
     // give control back (temproary) 
-    if (isNavMove && Math.abs(targetCamPos - curCamPos) < 10) isNavMove = false;   // TEMP: remove once signs open buildings
+    if(isNavMove && Math.abs(targetCamPos - curCamPos) < 10) isNavMove = false;   // TEMP: remove once signs open buildings
     camera.position.set(210, 72, -curCamPos);
     
     const lookTarget = camera.position.clone().addScaledVector(forward, 100);
@@ -278,7 +289,7 @@ function detectHover(e){
 
     if(!hits.length) return null;
 
-    return hits[0].object.userData.target;
+    return hits[0].object.userData.target || null;
 };
 
 
