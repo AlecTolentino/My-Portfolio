@@ -76,7 +76,40 @@ const locations = {
     tools_platforms: 1575,
     contact: 1605,
     more_coming: 1927
-}
+};
+
+const loc_entrance_coords = {
+    x: 61.02,
+    y: 36.12,
+    zOffset: -2.34
+};
+
+const entranceLocations = {
+
+    // Standard buildings
+    projects: getEntrancePos('projects'),
+    experience: getEntrancePos('experience'),
+    skills: getEntrancePos('skills'),
+
+    // Special cases
+    about: {
+        x: -20.69,
+        y: 33.53,
+        z: -1371.03
+    },
+
+    tools_platforms: {
+        x: 2.72,
+        y: 25.47,
+        z: -1573.91
+    },
+
+    contact: {
+        x: 16.57,
+        y: 34.15,
+        z: -1611.75
+    }
+};
 
 const socials = {
     "Github": "https://github.com/AlecTolentino",
@@ -101,7 +134,7 @@ const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
 const hover = createHover({scene, camera});
 
 // Free camera helper
-const DEV_MODE = true;
+const DEV_MODE = false;
 const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
 
     onDisable: () => {
@@ -120,7 +153,7 @@ const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
 window.addEventListener("wheel", (e) => {
 
     e.preventDefault();
-    if(isNavMove || freeCamera.enabled) return;
+    if(isNavMove || freeCamera?.enabled) return;
 
     gsap.killTweensOf(navTrip);
     targetCamPos += e.deltaY * SCROLL_SPEED;
@@ -133,7 +166,7 @@ window.addEventListener("wheel", (e) => {
 // Immediate Mouse/touch click
 window.addEventListener("pointerdown", (e) => {
 
-    if(isNavMove || freeCamera.enabled) return;
+    if(isNavMove || freeCamera?.enabled) return;
     gsap.killTweensOf(navTrip);
 
     dragged = false
@@ -147,7 +180,7 @@ window.addEventListener("pointerdown", (e) => {
 window.addEventListener("pointermove", (e) => {
 
     // Hover detection
-    if(street && !isDragging && !isNavMove && !freeCamera.enabled && e.pointerType !== "touch") {
+    if(street && !isDragging && !isNavMove && !freeCamera?.enabled && e.pointerType !== "touch") {
 
         const target = detectHover(e);
 
@@ -157,7 +190,7 @@ window.addEventListener("pointermove", (e) => {
     }
 
     // Prevent unnecessary movement
-    if(isNavMove || freeCamera.enabled || !isDragging) return;
+    if(isNavMove || freeCamera?.enabled || !isDragging) return;
 
     // Finger movement threshold
     const threshold = e.pointerType === "touch" ? 10 : 3;
@@ -179,7 +212,7 @@ window.addEventListener("pointermove", (e) => {
 window.addEventListener("pointerup", (e) => {
 
     isDragging = false;
-    if(!street || dragged || isNavMove || freeCamera.enabled) return;
+    if(!street || dragged || isNavMove || freeCamera?.enabled) return;
 
     const target = detectHover(e);
 
@@ -220,7 +253,7 @@ window.addEventListener("pointercancel", () => {
 window.addEventListener("keydown", (e) => {
 
     // Prevent unnecessary movement
-    if(isNavMove || freeCamera.enabled) return;
+    if(isNavMove || freeCamera?.enabled) return;
 
     gsap.killTweensOf(navTrip);
 
@@ -276,7 +309,7 @@ const sun = new THREE.DirectionalLight(0xfff1df, 1.8);
 sun.position.set(100, 200, 80);
 scene.add(skyFill, sun);
 
-// Load main street ------------------------------------------------------------------------------------
+// Street  visuals etc ------------------------------------------------------------------------------------
 
 gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 
@@ -307,7 +340,7 @@ function render() {
     const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
     lastFrameTime = now;
 
-    if(!freeCamera.enabled) {
+    if(!freeCamera?.enabled) {
 
         // Update normal camera position
         curCamPos += (targetCamPos - curCamPos) * (1 - Math.exp(-SMOOTH * dt));
@@ -327,7 +360,7 @@ function render() {
     }
 
     // Update hover animations and particles
-    const hoverBlocked = (isNavMove && performance.now() > hoverHoldUntil) || (isDragging && dragged) || freeCamera.enabled;
+    const hoverBlocked = (isNavMove && performance.now() > hoverHoldUntil) || (isDragging && dragged) || freeCamera?.enabled;
     hover.update(hoverBlocked);
 
     renderer.render(scene, camera);
@@ -335,6 +368,16 @@ function render() {
 };
 
 render();
+
+// Gets entrance positions
+function getEntrancePos(location){
+
+    return {
+        x: loc_entrance_coords.x,
+        y: loc_entrance_coords.y,
+        z: -locations[location] + loc_entrance_coords.zOffset
+    }
+};
 
 // HELPERS ------------------------------------------------------------------------------------------------------------
 
@@ -362,7 +405,7 @@ window.navTo = function(location){
         return;
     }
 
-    if(freeCamera.enabled){
+    if(freeCamera?.enabled){
         console.warn("Disable free camera before using navTo.");
         return;
     }
@@ -424,7 +467,7 @@ if(DEBUC_CAM){
 
     setInterval(() => {
 
-        if(!freeCamera.enabled) return;
+        if(!freeCamera?.enabled) return;
 
         console.log({
 
