@@ -4,14 +4,14 @@ import gsap from 'gsap';
 
 // MAIN VARS
 const HOVER_TAG = "Hover";
-const MAX_SPARKS = 400;
+const MAX_SPARKS = 50;
 
 // Sign vars
 const SIGN = {
     neonBoost: 1.0,
     faceTint: 0.28,             // Brightness increase for non-neon surfaces
     halo: 0.6,
-    sparkRate: 50,
+    sparkRate: 10,
     sparkBurst: 14              // Sparks generated immediately on hover
 };
 
@@ -558,7 +558,6 @@ export function createHover({scene, camera}){
     }
 
     // HOVER IN / OUT --------------------------------------------------------------------------------------------------
-
     function hoverIn(record){
 
         const state = record.state;
