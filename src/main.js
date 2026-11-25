@@ -274,7 +274,7 @@ function detectHover(e){
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObject(rayCastObjects, true);
+    const hits = raycaster.intersectObjects(rayCastObjects, true);
 
     if(!hits.length) return null;
 
