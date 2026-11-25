@@ -24,7 +24,7 @@ const BUILDING = {
 const SWAY = {
     roll: THREE.MathUtils.degToRad(3),                          // swing angle
     yaw: THREE.MathUtils.degToRad(2.5),                      // tiny twist on vertical axis
-    speed: 1.5,                                                                      // radians per second (0.9 = one swing about every 7 seconds)
+    speed: 7,                                                                      // radians per second (0.9 = one swing about every 7 seconds)
     range: 700                                                 
 };
 
