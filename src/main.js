@@ -32,6 +32,13 @@ const YAW = THREE.MathUtils.degToRad(0.85);
 let  curCamPos = 315
 let targetCamPos = 315
 
+const SMOOTH = 3.6;
+const DRAG_SPEED = 0.25;
+const MOBILE_DRAG_SPEED = 0.6;
+const SCROLL_SPEED = 0.3
+const KEY_MOVE = 40;
+let lastFrameTime = performance.now();
+
 // Road vars
 const roadStart = 90
 const roadEnd = 2255
@@ -97,7 +104,9 @@ window.addEventListener("wheel", (e) =>{
     e.preventDefault()
     if(isNavMove) return;
 
-    targetCamPos += e.deltaY * 0.2;
+    gsap.killTweensOf(navTrip);
+
+    targetCamPos += e.deltaY * SCROLL_SPEED;
 
     // Prevent leaving street
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
@@ -110,6 +119,8 @@ window.addEventListener("pointerdown", (e) => {
     // Prevent unecessary movement
     if(isNavMove) return;
 
+    gsap.killTweensOf(navTrip);
+
     dragged = false
     isDragging = true;
 
@@ -117,7 +128,7 @@ window.addEventListener("pointerdown", (e) => {
     lastXPos = e.clientX;
 });
 
-// Mouse move
+// Mouse / finger move
 window.addEventListener("pointermove", (e) => {
 
     // Hover detection 
@@ -127,7 +138,6 @@ window.addEventListener("pointermove", (e) => {
 
         // Update hovered object
         hover.setHovered(target);
-
         document.body.style.cursor = target ? "pointer" : "default";
     }
 
@@ -136,15 +146,14 @@ window.addEventListener("pointermove", (e) => {
 
     // Finger movement threshold
     const threshold = e.pointerType === "touch" ? 10 : 3;
-    if(Math.abs(e.clientX - startX) > threshold){
-
-        dragged = true;
-    }
+    if(Math.abs(e.clientX - startX) > threshold) dragged = true;
 
     const delta = lastXPos - e.clientX;
 
     // Move camera + Prevent leaving street
-    targetCamPos += delta * 0.2;
+    const speed = e.pointerType === "touch" ? MOBILE_DRAG_SPEED : DRAG_SPEED;
+    targetCamPos += delta * speed
+    ;
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
     lastXPos = e.clientX;
 });
@@ -195,13 +204,10 @@ window.addEventListener("keydown", (e) => {
     // Prevent uncessary movement
     if(isNavMove) return;
 
-    if(e.key === "ArrowRight") {
-        targetCamPos += 10;
-    }
+    gsap.killTweensOf(navTrip);
 
-    if(e.key === "ArrowLeft") {
-        targetCamPos -= 10;
-    }
+    if(e.key === "ArrowRight") targetCamPos += KEY_MOVE;
+    if(e.key === "ArrowLeft") targetCamPos -= KEY_MOVE;
 
     // Prevent leaving street
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
@@ -232,7 +238,7 @@ resize();
 window.addEventListener("resize", resize);
 window.visualViewport?.addEventListener("resize", resize);
 
-// Loaders
+// Loaders -----------------------------------------------------------------------------------------------------------------------
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath("/draco/");
 
@@ -266,18 +272,19 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 // Render objects
 function render(){
 
+    // TIme since last frame
+    const now = performance.now();
+    const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+    lastFrameTime = now;
+
     // Udpate camera pos
-    curCamPos += (targetCamPos - curCamPos) * 0.05;
+    curCamPos += (targetCamPos - curCamPos) * (1- Math.exp(-SMOOTH * dt));
 
-    // give control back (temproary)
     if(isNavMove && Math.abs(navDest - curCamPos) < NAV_RELEASE){   // TEMP: remove once signs open buildings
-
-        isNavMove = false;
-        gsap.killTweensOf(navTrip);         
-        targetCamPos = navDest;             
+        isNavMove = false;     
     }
-    camera.position.set(210, 72, -curCamPos);
 
+    camera.position.set(210, 72, -curCamPos);
     const lookTarget = camera.position.clone().addScaledVector(forward, 100);
     camera.lookAt(lookTarget);
 
@@ -335,6 +342,14 @@ window.navTo = function(location){
             // Move both together
             curCamPos = navTrip.pos;
             targetCamPos = navTrip.pos;
+        },
+
+        onComplete: () => {
+
+            // Land on sign
+            curCamPos = navDest;
+            targetCamPos = navDest;
+            isNavMove = false;       // TEMP: remove once signs open buildings
         }
     });
 };
