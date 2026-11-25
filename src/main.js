@@ -97,7 +97,7 @@ window.addEventListener("wheel", (e) =>{
     e.preventDefault()
     if(isNavMove) return;
 
-    targetCamPos += e.deltaY * 0.3;
+    targetCamPos += e.deltaY * 0.2;
 
     // Prevent leaving street
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
@@ -144,7 +144,7 @@ window.addEventListener("pointermove", (e) => {
     const delta = lastXPos - e.clientX;
 
     // Move camera + Prevent leaving street
-    targetCamPos += delta * 0.3;
+    targetCamPos += delta * 0.2;
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
     lastXPos = e.clientX;
 });
@@ -267,7 +267,7 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 function render(){
 
     // Udpate camera pos
-    curCamPos += (targetCamPos - curCamPos) * 0.08;
+    curCamPos += (targetCamPos - curCamPos) * 0.05;
 
     // give control back (temproary)
     if(isNavMove && Math.abs(navDest - curCamPos) < NAV_RELEASE){   // TEMP: remove once signs open buildings
@@ -297,14 +297,14 @@ render();
 // Control cam movement
 const camEase = (t) => {
 
-     // the moment the speed up phase ends
-    const c = 0.4;   
+     //  Acceleration 40%
+    const c = 0.35;   
 
     if(t < c) return 0.5 * (t / c) ** 2;    
 
      // 0 to 1 through the slow down phase
     const s = (t - c) / (1 - c);           
-    return 0.5 + 0.5 * (1 - (1 - s) ** 3); 
+    return 0.5 + 0.5 * (1 - (1 - s) ** 2.1); 
 };
 
 // Move camera to locations
