@@ -304,7 +304,7 @@ export function createHover({scene, camera}){
         sparks.grav[i] = 3.2 * scale;
 
         // Store sign colour for this particle
-        sparks.tint[i] = record.glowColor;
+        sparks.tint[i] = record.glowColour;
 
         // Set individual particle size
         sparks.size[i] = Math.min((0.16 + Math.random() * 0.12) * scale, 3);
@@ -450,12 +450,7 @@ export function createHover({scene, camera}){
 
         const hsl = {};
         neonColour.getHSL(hsl);
-
-        const glowColour = new THREE.Color().setHSL(
-            hsl.h,
-            Math.max(hsl.s, 0.6),
-            Math.max(hsl.l, 0.55)
-        );
+        const glowColour = new THREE.Color().setHSL(hsl.h,Math.max(hsl.s, 0.6),Math.max(hsl.l, 0.55));
 
         // Rest transform + pivot
         const box = getBoundingBox(root);
@@ -524,11 +519,7 @@ export function createHover({scene, camera}){
         root.children.forEach((child) =>{
 
             if(isStand(child.name)){
-
-                record.pinned.push({
-                    obj: child,
-                    local0: child.matrix.clone()
-                });
+                record.pinned.push({obj: child, local0: child.matrix.clone()});
             }
         });
 
@@ -567,6 +558,7 @@ export function createHover({scene, camera}){
     }
 
     // HOVER IN / OUT --------------------------------------------------------------------------------------------------
+
     function hoverIn(record){
 
         const state = record.state;
@@ -721,8 +713,7 @@ export function createHover({scene, camera}){
 
             if(item.lit){
 
-                item.mat.emissiveIntensity =
-                    item.baseIntensity * (1 + glow * record.config.neonBoost);
+                item.mat.emissiveIntensity =item.baseIntensity * (1 + glow * record.config.neonBoost);
 
             } 
             else if(item.hasEmissive){
@@ -766,6 +757,7 @@ export function createHover({scene, camera}){
 
             record.root.updateMatrix();
             matA.compose(record.pos0, record.quat0, record.scale0);
+
             matB.copy(record.root.matrix).invert().multiply(matA);
 
             for(const pin of record.pinned){
@@ -777,7 +769,6 @@ export function createHover({scene, camera}){
     }
 
     // UPDATE ---------------------------------------------------------------------------------------------------------
-
     // Call once per frame. `blocked` = true while dragging / auto-navigating
     function update(blocked = false){
 
