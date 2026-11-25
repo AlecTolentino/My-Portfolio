@@ -605,7 +605,7 @@ export function createHover({scene, camera}){
     }
 
     // HOVER IN / OUT --------------------------------------------------------------------------------------------------
-    function hoverIn(record, playAudio = true){
+    function hoverIn(record){
 
         playSound('hover');
         const state = record.state;
@@ -614,7 +614,7 @@ export function createHover({scene, camera}){
         gsap.killTweensOf(state);
         activeObjs.add(record);
 
-        // Fade the idle sway out so it doesn't fight the hover animation
+        // Fade the idle sway out 
         gsap.to(state, {
             sway: 0,
             duration: 0.25,
