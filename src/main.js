@@ -36,6 +36,7 @@ const YAW = THREE.MathUtils.degToRad(0.85);
 let curCamPos = 315
 let targetCamPos = 315
 
+// Cam speed vars etc
 const SMOOTH = 3.6;
 const DRAG_SPEED = 0.25;
 const MOBILE_DRAG_SPEED = 0.6;
@@ -52,6 +53,8 @@ const roadLen = roadEnd - roadStart
 let isDragging = false;
 let dragged = false;
 let isNavMove = false
+let isEntranceMove = false;
+let isAtEntrance = false;
 
 // Phone control
 const HOVER_HOLD = 600;
@@ -80,7 +83,7 @@ const locations = {
 
 const loc_entrance_coords = {
     x: 61.02,
-    y: 36.12,
+    y: 40,
     zOffset: -2.34
 };
 
@@ -100,13 +103,13 @@ const entranceLocations = {
 
     tools_platforms: {
         x: 2.72,
-        y: 25.47,
+        y: 29,
         z: -1573.91
     },
 
     contact: {
         x: 16.57,
-        y: 34.15,
+        y: 37,
         z: -1611.75
     }
 };
@@ -340,20 +343,16 @@ function render() {
     const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
     lastFrameTime = now;
 
-    if(!freeCamera?.enabled) {
+    if(!freeCamera?.enabled && !isEntranceMove && !isAtEntrance){
 
         // Update normal camera position
         curCamPos += (targetCamPos - curCamPos) * (1 - Math.exp(-SMOOTH * dt));
-
-        if(isNavMove && Math.abs(navDest - curCamPos) < NAV_RELEASE) {
-            isNavMove = false;
-        }
 
         camera.position.set(210, 72, -curCamPos);
         const lookTarget = camera.position.clone().addScaledVector(forward, 100);
         camera.lookAt(lookTarget);
     }
-    else{
+    else if(freeCamera?.enabled){
 
         // Update free camera movement
         freeCamera.update(dt);
@@ -400,27 +399,41 @@ window.navTo = function(location){
 
     playSound("click");
 
+    // Location not found
     if(!(location in locations)){
         console.warn("No location for:", location);
         return;
     }
 
+    // Free cam warnung
     if(freeCamera?.enabled){
         console.warn("Disable free camera before using navTo.");
         return;
     }
 
     document.body.style.cursor = "default";
-    isNavMove = true;
 
+    isNavMove = true;
+    isEntranceMove = false;
+    isAtEntrance = false;
+
+    // Return cam to  normal pos
+    camera.position.set(210, 72, -curCamPos);
+
+    const lookTarget = camera.position.clone().addScaledVector(forward, 100);
+    camera.lookAt(lookTarget);
+
+    // Navigat to location
     navDest = locations[location];
     navTrip.pos = curCamPos;
 
     gsap.killTweensOf(navTrip);
+    gsap.killTweensOf(camera.position);
 
-    // Longer trips take longer
+    // Longer trips take longer 
     const duration = THREE.MathUtils.clamp(Math.abs(navDest - curCamPos) / 600,0.9,1.6);
 
+    // PART 1 of travel----------------------------------------------------------------------------------------------------
     gsap.to(navTrip,{
 
         pos: navDest,
@@ -439,7 +452,43 @@ window.navTo = function(location){
             // Land on sign
             curCamPos = navDest;
             targetCamPos = navDest;
-            isNavMove = false;
+            
+            // Check if entrance + guard
+            const entrance = entranceLocations[location];
+            if(!entrance){
+                isNavMove = false;
+                return;
+            }
+
+            // PART 2 of travel ----------------------------------------------------------------------------------------
+            isEntranceMove = true;
+
+            gsap.to(camera.position,{
+
+                x: entrance.x,
+                y: entrance.y,
+                z: entrance.z,
+
+                duration: 1,
+                ease: "power2.inOut",
+
+                onUpdate: () =>{
+
+                    // Keep looking at same direction
+                    camera.lookAt(
+                        entrance.x + forward.x * 100,
+                        entrance.y + forward.y * 100,
+                        entrance.z + forward.z * 100
+
+                    )
+                },
+                onComplete: () => {
+
+                    isEntranceMove = false;
+                    isAtEntrance = true;
+                    isNavMove = false;
+                }
+            });
         }
     });
 };
