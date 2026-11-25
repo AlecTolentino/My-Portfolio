@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createHover} from './hover.js';
+import {playSound, setHoverSound} from './sound.js';
 
 import './style.scss'
 
@@ -169,7 +170,12 @@ window.addEventListener("pointerup", (e) => {
     const target = detectHover(e);
 
     // Touch: highlight whatever was tapped 
-    if(e.pointerType === "touch") hover.setHovered(target);
+    if(e.pointerType === "touch"){ 
+        
+        setHoverSound(false);
+        hover.setHovered(target);
+        setHoverSound(true);
+    }
 
     // Ignore if nothing clickable was hit
     if(!target) return;
@@ -316,6 +322,8 @@ const camEase = (t) => {
 
 // Move camera to locations
 window.navTo = function(location){
+
+    playSound("click");
 
     if(!(location in locations)){
         console.warn("No location for:", location);

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
+import {playSound} from './sound.js';
 
 // MAIN VARS
 const HOVER_TAG = "Hover";
@@ -604,8 +605,9 @@ export function createHover({scene, camera}){
     }
 
     // HOVER IN / OUT --------------------------------------------------------------------------------------------------
-    function hoverIn(record){
+    function hoverIn(record, playAudio = true){
 
+        playSound('hover');
         const state = record.state;
 
         // Stop any previous animations
