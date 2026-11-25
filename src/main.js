@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import gsap from 'gsap';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createHover} from './hover.js';
@@ -37,20 +38,29 @@ let isDragging = false;
 let dragged = false;
 let isNavMove = false
 
+// phone control
+const HOVER_HOLD = 600;
+let hoverHoldUntil = 0;                     // timestamp until which hover may keep playing
+
+// hover animation plays) and then speeds up. Wheel / drag / keys still use the normal easing.
+let navDest = 0;           
+const navTrip = {pos: 0};       
+const NAV_RELEASE = 10;                 // give control back this close to the destination
+
 // Pointer positions
 let startX = 0
 let lastXPos = 0;
 
 // Locations
 const locations ={
-    start: 327,                           
-    projects: 596,                 
-    experience: 858,                 
-    skills: 1125,                    
-    about: 1385,             
-    tools_platforms: 1575,         
-    contact: 1610,              
-    more_coming: 1925          
+    start: 327,
+    projects: 596,
+    experience: 858,
+    skills: 1125,
+    about: 1385,
+    tools_platforms: 1575,
+    contact: 1610,
+    more_coming: 1925
 }
 
 const socials = {
@@ -58,7 +68,7 @@ const socials = {
     "Linkedin": "https://www.linkedin.com/in/alec-tolentino-bd2004",
 };
 
-// Three JS setup 
+// Three JS setup
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xbfd8f0);
 
@@ -87,7 +97,7 @@ window.addEventListener("wheel", (e) =>{
 
     // Prevent leaving street
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
-    
+
 }, {passive:false});
 
 // Immediate Mouse/touch click
@@ -99,14 +109,14 @@ window.addEventListener("pointerdown", (e) => {
     dragged = false
     isDragging = true;
 
-    startX = e.clientX;  
+    startX = e.clientX;
     lastXPos = e.clientX;
 });
 
-// Mouse/touch move
+// Mouse move
 window.addEventListener("pointermove", (e) => {
 
-    // Hover detection
+    // Hover detection 
     if(street && !isDragging && !isNavMove && e.pointerType !== "touch"){
 
         const target = detectHover(e);
@@ -120,7 +130,9 @@ window.addEventListener("pointermove", (e) => {
     // Prevent unecessary movement
     if(isNavMove || !isDragging) return;
 
-    if(Math.abs(e.clientX - startX) > 3){
+    // Finger movement threshold
+    const threshold = e.pointerType === "touch" ? 10 : 3;
+    if(Math.abs(e.clientX - startX) > threshold){
 
         dragged = true;
     }
@@ -140,20 +152,27 @@ window.addEventListener("pointerup", (e) => {
 
     // Click / tap if no drag
     if(!street || dragged || isNavMove) return;
-    
-    const target = detectHover(e);
-    if(e.pointerType === "touch"){
 
-        hover.setHovered(target);
-    }
-    
-    // Ignore if no click
+    const target = detectHover(e);
+
+    // Touch: highlight whatever was tapped 
+    if(e.pointerType === "touch") hover.setHovered(target);
+
+    // Ignore if nothing clickable was hit
     if(!target) return;
 
     const name = target.name.toLowerCase();
     const loc = locationKeys.find(k => name.startsWith(k));
 
-    if(loc){
+    if(!loc) return;
+
+    if(e.pointerType === "touch"){
+
+        // Keep hover animation alive while camera starts moving
+        hoverHoldUntil = performance.now() + HOVER_HOLD;
+        navTo(loc);
+    }
+    else{
 
         hover.setHovered(null);
         navTo(loc);
@@ -182,7 +201,7 @@ window.addEventListener("keydown", (e) => {
 
     // Prevent leaving street
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
-    
+
 }, {passive:false});
 
 // VISUALS ----------------------------------------------------------------------------------------------------
@@ -200,7 +219,8 @@ function resize(){
     camera.aspect = sizes.width / sizes.height;
     camera.updateProjectionMatrix();
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio));
+    // Cap the pixel ratio: a phone with a ratio of 3 would otherwise draw 9x the pixels
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(sizes.width, sizes.height, false);
 };
 
@@ -241,26 +261,32 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 
 // Render objects
 function render(){
-    
+
     // Udpate camera pos
     curCamPos += (targetCamPos - curCamPos) * 0.08;
 
-    // give control back (temproary) 
-    if(isNavMove && Math.abs(targetCamPos - curCamPos) < 10) isNavMove = false;   // TEMP: remove once signs open buildings
+    // give control back (temproary)
+    if(isNavMove && Math.abs(navDest - curCamPos) < NAV_RELEASE){   // TEMP: remove once signs open buildings
+
+        isNavMove = false;
+        gsap.killTweensOf(navTrip);         
+        targetCamPos = navDest;             
+    }
     camera.position.set(210, 72, -curCamPos);
-    
+
     const lookTarget = camera.position.clone().addScaledVector(forward, 100);
     camera.lookAt(lookTarget);
 
     // Update hover animations and particles
-    hover.update(isNavMove || (isDragging && dragged));
-    
+    // While travelling, hover is blocked - except for a short hold after touch tap
+    const hoverBlocked = (isNavMove && performance.now() > hoverHoldUntil) || (isDragging && dragged);
+    hover.update(hoverBlocked);
+
     renderer.render(scene, camera);
     requestAnimationFrame(render);
 };
 
 render();
-
 
 // HELPERS ----------------------------------------------------------
 // Move camera to locations
@@ -272,8 +298,27 @@ window.navTo = function(location){
     }
 
     document.body.style.cursor = "default";
-    isNavMove = true;   
-    targetCamPos = locations[location];
+    isNavMove = true;
+
+    navDest = locations[location];
+    navTrip.pos = curCamPos;
+    gsap.killTweensOf(navTrip);
+
+    // Longer trips take longer
+    const duration = THREE.MathUtils.clamp(Math.abs(navDest - curCamPos) / 600, 0.9, 1.6);
+
+    gsap.to(navTrip, {
+        pos: navDest,
+        duration,
+        ease: "power2.inOut",           // slow start, fast middle, soft landing
+
+        onUpdate: () => {
+
+            // Move both together
+            curCamPos = navTrip.pos;
+            targetCamPos = navTrip.pos;
+        }
+    });
 };
 
 // Detect mouse hover over clickable object
@@ -291,7 +336,6 @@ function detectHover(e){
 
     return hits[0].object.userData.target || null;
 };
-
 
 // Check camera pos
 // let lastLoggedPos = -1;

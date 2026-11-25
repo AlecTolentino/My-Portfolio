@@ -571,7 +571,7 @@ export function createHover({scene, camera}){
             .to(state, {
                 glow: 1,
                 duration: 0.2,
-                ease: 'power2.out'
+                ease: 'power2.out',
             })
             .to(state, {
                 glow: record.isSign ? 0.65 : 0.7,
