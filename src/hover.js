@@ -161,6 +161,13 @@ export function createHover({scene, camera}){
     // Store hoverable objects
     const hoverObjs = new Map();
 
+    // Store records of each model
+    const registeredModels = new Map();
+
+    // Records of active model
+    let activeRecords = new Set();
+    let activeModel = null;
+
     // Store obj with active animations
     const activeObjs = new Set();
 
@@ -335,7 +342,7 @@ export function createHover({scene, camera}){
     function updateSparks(dt){
 
         // Generate sparks on sign hover
-        if(curHoverObj && curHoverObj.isSign && curHoverObj.state.sparks > 0.5){
+        if(curHoverObj && curHoverObj.particlesEnabled && curHoverObj.isSign && curHoverObj.state.sparks > 0.5){
 
             // Accumulate sparks
             curHoverObj.spawnAcc += SIGN.sparkRate * dt;
@@ -400,10 +407,24 @@ export function createHover({scene, camera}){
         sparkGeo.attributes.aSize.needsUpdate = true;
     };
 
+    // Remove all particles
+    function clearSparks(){
+
+        sparks.alive = 0;
+        sparks.next = 0;
+
+        sparks.life.fill(0);
+        sparks.col.fill(0);
+        sparks.tint.fill(null);
+
+        sparkGeo.attributes.position.needsUpdate = true;
+        sparkGeo.attributes.color.needsUpdate = true;
+    };
+
     // BUILD RECORDS ---------------------------------------------------------------------------------------------------
 
     // Build a record for each hoverable object
-    function buildRecord(root){
+    function buildRecord(root, particlesEnabled = true){
 
         // Determine whether sign or building
         const sign = isSign(root.name);
@@ -518,6 +539,7 @@ export function createHover({scene, camera}){
             config,
             matList,
             glowColour,
+            particlesEnabled,
 
             // Original transform
             pos0: root.position.clone(),
@@ -587,22 +609,49 @@ export function createHover({scene, camera}){
         return record;
     }
 
-    // Call once after the GLB loads: sets up every object with "Hover" in its name
-    function setStreet(street){
+    // Register hoverable objects in model
+    function registerModel(model, {particles = true} = {}){
 
-        street.updateMatrixWorld(true);
-        street.traverse((obj) =>{
+        // Don't reg same model twice
+        if(registeredModels.has(model)) return;
+        model.updateMatrixWorld(true);
+
+        const modelRecords = new Set();
+        model.traverse((obj) => {
 
             if(obj.name.includes(HOVER_TAG) && !hoverObjs.has(obj)){
 
-                const record = buildRecord(obj);
+                const record = buildRecord(obj, particles);
                 hoverObjs.set(obj, record);
+                modelRecords.add(record);
 
-                // Remember which ones sway
+                // Remember sway signs
                 if(record.canSway) swayRecords.push(record);
             }
         });
+
+        registeredModels.set(model, modelRecords);
+    };
+
+    // Change which model can be interacted
+    function setActiveModel(model){
+
+        // Clear previous hover
+        setHoveredRecord(null);
+
+        // Clear particles
+        clearSparks();
+
+        activeModel = model;
+        activeRecords = registeredModels.get(model) || new Set();
     }
+
+    // Call once after the GLB loads: sets up every object with "Hover" in its name
+    function setStreet(street){
+
+        registerModel(street, {particles: true});
+        setActiveModel(street);
+    };
 
     // HOVER IN / OUT --------------------------------------------------------------------------------------------------
     function hoverIn(record){
@@ -639,35 +688,38 @@ export function createHover({scene, camera}){
         // Animate sign
         if(record.isSign){
 
-            gsap.timeline()
-                .to(state, {
+            gsap.timeline().to(state, {
                     w: 1.2,
                     h: 0.78,
                     duration: 0.1,
                     ease: 'power2.out'
-                })
-                .to(state, {
+
+                }).to(state, {
                     w: 0.9,
                     h: 1.16,
                     duration: 0.14,
                     ease: 'power2.inOut'
-                })
-                .to(state, {
+
+                }).to(state, {
                     w: 1.05,
                     h: 1.05,
                     duration: 0.9,
                     ease: 'elastic.out(1,0.35)'
                 });
 
-            // Start generating sparks
-            state.sparks = 1;
+            // Gen particles in allowed environment
+            if(record.particlesEnabled){
 
-            // Reset accumulator
-            record.spawnAcc = 0;
+                // Start generating sparks
+                state.sparks = 1;
 
-            // Generate initial spark burst
-            for(let i = 0; i < SIGN.sparkBurst; i++){
-                spawnSpark(record, 1.4);
+                // Reset accumulator
+                record.spawnAcc = 0;
+
+                // Generate initial spark burst
+                for(let i = 0; i < SIGN.sparkBurst; i++){
+                    spawnSpark(record, 1.4);
+                }
             }
         }
         else{
