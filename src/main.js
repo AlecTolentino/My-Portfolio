@@ -10,6 +10,7 @@ import {createTransitions} from './systems/transitions.js';
 import {createHover} from './interactions/hover.js';
 import {playSound, setHoverSound} from './systems/sound.js';
 import {createFreeCamera} from './cameras/freeCam.js';
+import {createRaycasting} from './interactions/raycasting.js';
 
 import './style.scss'
 
@@ -27,11 +28,7 @@ const sizes = {
     height: window.innerHeight
 }
 
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
 let street = null;
-
-const rayCastObjects = [];
 
 // Camera settings
 const FOV = 68
@@ -135,6 +132,7 @@ const forward = new THREE.Vector3(
 );
 
 // Raycasting
+const raycasting = createRaycasting({camera, canvas});
 const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
 
 // Hover
@@ -189,7 +187,7 @@ window.addEventListener("pointermove", (e) => {
     // Hover detection
     if(street && !isDragging && !isNavMove && !freeCamera?.enabled && e.pointerType !== "touch") {
 
-        const target = detectHover(e);
+        const target = raycasting.detectHover(e);
 
         // Update hovered object
         hover.setHovered(target);
@@ -221,7 +219,7 @@ window.addEventListener("pointerup", (e) => {
     isDragging = false;
     if(!street || dragged || isNavMove || freeCamera?.enabled) return;
 
-    const target = detectHover(e);
+    const target = raycasting.detectHover(e);
 
     if(e.pointerType === "touch") {
 
@@ -329,7 +327,7 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
     street = gltf.scene;
 
     // Register clickable objects
-    registerRaycastObjects(street);
+    raycasting.registerModel(street);
 
     // Register street with model manager
     modelManager.setStreet(street);
@@ -496,41 +494,6 @@ window.navTo = function(location){
     });
 };
 
-// Detect mouse hover over clickable object
-function detectHover(e){
-
-    const rect = canvas.getBoundingClientRect();
-
-    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects(rayCastObjects, true);
-
-    if(!hits.length) return null;
-
-    return hits[0].object.userData.target || null;
-};
-
-// Detection of raycast objs
-function registerRaycastObjects(model){
-
-    // Clear objects belonging to previous model
-    rayCastObjects.length = 0;
-
-    model.traverse((child) => {
-
-        if(child.name.includes("Raycaster")){
-
-            rayCastObjects.push(child);
-
-            child.traverse((part) => {
-                part.userData.target = child;
-            });
-        }
-    });
-}
-
 // TEMP: Test interior loading
 window.testInterior = async function(location = 'projects'){
 
@@ -554,7 +517,7 @@ window.testInterior = async function(location = 'projects'){
         hover.setActiveModel(interior);
 
         // Switch raycasting to interior
-        registerRaycastObjects(interior);
+        raycasting.registerModel(interior);
 
         // Apply the interior's camera settings
         const cameraSettings = interiorConfig.camera;
