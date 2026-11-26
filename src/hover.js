@@ -172,7 +172,6 @@ export function createHover({scene, camera}){
     const activeObjs = new Set();
 
     // Signs that sway when idle
-    const swayRecords = [];
     let swayTime = 0;                       // seconds, drives the sway waves
 
     // Time between frames
@@ -624,9 +623,6 @@ export function createHover({scene, camera}){
                 const record = buildRecord(obj, particles);
                 hoverObjs.set(obj, record);
                 modelRecords.add(record);
-
-                // Remember sway signs
-                if(record.canSway) swayRecords.push(record);
             }
         });
 
@@ -805,7 +801,11 @@ export function createHover({scene, camera}){
 
     // Objects without "Hover" are ignored.
     function setHovered(obj){
-        setHoveredRecord((obj && hoverObjs.get(obj)) || null);
+
+        const record = obj ? hoverObjs.get(obj) : null;
+
+        // Ignore objects not in active model
+        setHoveredRecord(record && activeRecords.has(record) ? record : null);
     }
 
     // APPLY ANIMATION TO OBJECT --------------------------------------------------------------------------------------
@@ -935,7 +935,7 @@ export function createHover({scene, camera}){
         // Idle sway: animate signs near the camera (ones in a hover animation are handled below)
         const rangeSq = SWAY.range * SWAY.range;
 
-        for(const record of swayRecords){
+        for(const record of activeRecords){
 
             if(activeObjs.has(record)) continue;
             if(record.wCenter.distanceToSquared(camera.position) > rangeSq) continue;
@@ -953,7 +953,11 @@ export function createHover({scene, camera}){
     }
 
     // Return functions used by main.js
-    return {setStreet, setHovered, update,
+    return {setStreet, registerModel, setActiveModel, setHovered, update,
+
+        get activeModel(){
+            return activeModel;
+        },
 
         get hovered(){
             return curHoverObj ? curHoverObj.root : null;
