@@ -8,6 +8,36 @@ const sounds = {
 
 // Set when hover is played
 let hoverSoundEnabled = true;
+let unlockedAudio = false;
+
+function unlockAudio(){
+
+    if(unlockedAudio) return;
+
+    Object.values(sounds).forEach(sound => {
+
+        sound.muted = true;
+        const promise = sound.play();
+
+        if(promise){
+
+            promise.then(() => {
+
+                sound.pause();
+                sound.currentTime = 0;
+                sound.muted = false;
+
+            }).catch(() => {
+                sound.muted = false;
+            });
+        }
+    });
+    unlockedAudio = true;
+};
+
+// Unlock audio on first interaction
+window.addEventListener('pointerdown', unlockAudio, {once:true});
+window.addEventListener('keydown', unlockAudio, {once:true});
 
 export function playSound(name){
 
