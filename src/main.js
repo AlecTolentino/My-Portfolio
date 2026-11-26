@@ -332,12 +332,11 @@ function updateLoadingScreen(dt){
     const elapsed = (performance.now() - loadingStartTime) / 1000;
 
     // Gradually reach 90% over at least 5 seconds
-    let targetProgress = Math.min(90, (elapsed / 0.7) * 90);
-    if(loadingComplete && elapsed >= 0.7) targetProgress = 100;
+    let targetProgress = Math.min(90, (elapsed / 3) * 90);
+    if(loadingComplete && elapsed >= 1.5) targetProgress = 100;
     
     // Smoothly approach the target progress
     displayedProgress += (targetProgress - displayedProgress) * Math.min(1, dt * 3);
-
     const progress = Math.floor(displayedProgress);
 
     loadingBarFill.style.width = `${progress}%`;
