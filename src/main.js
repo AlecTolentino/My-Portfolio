@@ -27,10 +27,25 @@ const loadingBarFill = document.querySelector('#loading-bar-fill');
 const startButton = document.querySelector('#start-button');
 
 // Loading progress
+let experienceStarted = false;
 let loadingComplete = false;
 let loadingReady = false;
 let displayedProgress = 0;
+
+const LOAD_DURATION = 2;
+const FINAL_PROGRESS_DURATION = 0.8;
+let finalProgressStart = null;
 const loadingStartTime = performance.now();
+
+// Random progress milestones
+const loadMilestones = [
+    {time: 0, progress: 0},
+    {time: 0.2 + Math.random() * 0.1, progress: 10 + Math.random() * 20},
+    {time: 0.4 + Math.random() * 0.1, progress: 35 + Math.random() * 20},
+    {time: 0.6 + Math.random() * 0.1, progress: 60 + Math.random() * 20},
+    {time: 0.8 + Math.random() * 0.1, progress: 82 + Math.random() * 6},
+    {time: 1, progress: 90}
+];
 
 // Stop text selection, the long-press menu and the magnifier loupe on touch screens
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -143,7 +158,7 @@ const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
 window.addEventListener("wheel", (e) => {
 
     e.preventDefault();
-    if(streetCam.isNavigating || freeCamera?.enabled || !loadingReady) return;
+    if(streetCam.isNavigating || freeCamera?.enabled || !experienceStarted) return;
     streetCam.scroll(e.deltaY);
 
 }, {passive:false});
@@ -151,7 +166,7 @@ window.addEventListener("wheel", (e) => {
 // Immediate Mouse/touch click
 window.addEventListener("pointerdown", (e) => {
 
-    if(streetCam.isNavigating || freeCamera?.enabled || !loadingReady) return;
+    if(streetCam.isNavigating || freeCamera?.enabled || !experienceStarted) return;
 
     dragged = false
     isDragging = true;
@@ -163,7 +178,11 @@ window.addEventListener("pointerdown", (e) => {
 // Mouse move
 window.addEventListener("pointermove", (e) => {
 
-    if (!loadingReady) return;
+    if(!experienceStarted) {
+        hover.setHovered(null);
+        document.body.style.cursor = "default";
+        return;
+    }
 
     // Hover detection
     if(street && !isDragging && !streetCam.isNavigating && !freeCamera?.enabled && e.pointerType !== "touch") {
@@ -191,6 +210,8 @@ window.addEventListener("pointermove", (e) => {
 
 // Immediate Mouse/touch release
 window.addEventListener("pointerup", (e) => {
+
+    if (!experienceStarted) return;
 
     isDragging = false;
     if(!street || dragged || streetCam.isNavigating || freeCamera?.enabled) return;
@@ -234,7 +255,7 @@ window.addEventListener("pointercancel", () => {
 window.addEventListener("keydown", (e) => {
 
     // Prevent unnecessary movement
-    if(streetCam.isNavigating || freeCamera?.enabled || !loadingReady) return;
+    if(streetCam.isNavigating || freeCamera?.enabled || !experienceStarted) return;
 
     if(e.key === "ArrowRight") streetCam.moveBy(1);
     if(e.key === "ArrowLeft") streetCam.moveBy(-1);
@@ -322,7 +343,8 @@ startButton.addEventListener('click', () => {
 
     if (!loadingReady || startButton.disabled) return;
 
-    // User interaction allows browser audio playback
+    experienceStarted = true;
+
     playSound('click');
     loadingScreen.classList.add('hidden');
 });
@@ -349,7 +371,7 @@ function render() {
 
     // Update hover animations and particles
     const hoverBlocked = (streetCam.isNavigating && performance.now() > hoverHoldUntil) || (isDragging && dragged) || freeCamera?.enabled;
-    hover.update(hoverBlocked);
+    hover.update(hoverBlocked || !experienceStarted);
 
     renderer.render(scene, camera);
     requestAnimationFrame(render);
@@ -361,34 +383,71 @@ function render() {
 function updateLoadingScreen(dt){
 
     const elapsed = (performance.now() - loadingStartTime) / 1000;
+    const timeProgress = Math.min(elapsed / LOAD_DURATION, 1);
 
-    // Gradually reach 90% over at least 5 seconds
-    let targetProgress = Math.min(90, (elapsed / 3) * 90);
-    if(loadingComplete && elapsed >= 1.5) targetProgress = 100;
+    // Find current random progress milestones
+    let targetProgress = 90;
+
+    if(timeProgress < 1){
+
+        let i = loadMilestones.findIndex((milestone, index) =>
+            index < loadMilestones.length - 1 &&
+            timeProgress >= milestone.time &&
+            timeProgress < loadMilestones[index + 1].time
+        );
+
+        i = Math.max(0, i);
+
+        const current = loadMilestones[i];
+        const next = loadMilestones[i + 1];
+
+        // Interpolate smoothly between milestones
+        const t = (timeProgress - current.time) / (next.time - current.time);
+        const eased = t * t * (3 - 2 * t);
+
+        targetProgress = THREE.MathUtils.lerp(current.progress, next.progress, eased);
+    }
+
+    // Update progress until 90%
+    if(finalProgressStart === null) displayedProgress = targetProgress;
     
-    // Smoothly approach the target progress
-    displayedProgress += (targetProgress - displayedProgress) * Math.min(1, dt * 3);
+
+    // Wait until duration and model loading are both complete
+    if(loadingComplete && timeProgress >= 1 && finalProgressStart === null){
+
+        finalProgressStart = performance.now();
+        loadingStatus.textContent = 'FINALISING EXPERIENCE';
+    }
+
+    // Animate final 90–100%
+    if(finalProgressStart !== null){
+
+        const finalElapsed = (performance.now() - finalProgressStart) / 1000;
+        const finalT = Math.min(finalElapsed / FINAL_PROGRESS_DURATION, 1);
+
+        // Ease smoothly into 100%
+        const eased = 1 - Math.pow(1 - finalT, 3);
+
+        displayedProgress = THREE.MathUtils.lerp(90, 100, eased);
+
+        if(finalT >= 1 && !loadingReady){
+
+            loadingReady = true;
+            displayedProgress = 100;
+
+            loadingStatus.textContent = 'EXPERIENCE READY';
+
+            startButton.disabled = false;
+            loadingScreen.classList.add('ready');
+        }
+    }
+
+    // Update progress bar and percentage
     const progress = Math.floor(displayedProgress);
 
     loadingBarFill.style.width = `${progress}%`;
     loadingPercent.textContent = `${progress}%`;
-
-    // Update loading status
-    if (loadingComplete && displayedProgress >= 89) loadingStatus.textContent = 'FINALISING EXPERIENCE';
-
-    // Reveal the button when loading is finished
-    if (loadingComplete && displayedProgress >= 99.5 && !loadingReady) {
-
-        loadingReady = true;
-
-        loadingBarFill.style.width = '100%';
-        loadingPercent.textContent = '100%';
-        loadingStatus.textContent = 'EXPERIENCE READY';
-
-        startButton.disabled = false;
-        loadingScreen.classList.add('ready');
-    }
-};
+}
 
 const LOADING_ROTATION = 8;
 const LOADING_PERSPECTIVE = 700;
