@@ -4,7 +4,10 @@ import * as THREE from 'three';
 export function createFreeCamera({camera, canvas, onDisable}) {
 
     // SETTINGS
-    const SPEED = 20;
+    let speed = 20;
+    const SPEED_CHANGE = 5;
+    const MIN_SPEED = 5;
+    const MAX_SPEED = 100;
     const SENSITIVITY = 0.002;
 
     // STATE
@@ -22,6 +25,11 @@ export function createFreeCamera({camera, canvas, onDisable}) {
         q: false,
         e: false
     };
+
+    // WASD move
+    // F enter/exit free cam
+    // Q / E - Up and Down
+    // R / T Speed up / down
 
     const worldUp = new THREE.Vector3(0, 1, 0);
     const direction = new THREE.Vector3();
@@ -54,6 +62,8 @@ export function createFreeCamera({camera, canvas, onDisable}) {
         camera.rotation.set(pitch, yaw, 0, "YXZ");
 
         resetKeys();
+
+        console.log("Free camera enabled. Speed:", speed);
     }
 
     function disable() {
@@ -97,6 +107,17 @@ export function createFreeCamera({camera, canvas, onDisable}) {
         }
 
         if(!enabled) return;
+
+        // Adjust movement speed
+        if(key === "r" && !e.repeat) {
+            speed = Math.min(speed + SPEED_CHANGE, MAX_SPEED);
+            console.log("FreeCam speed:", speed);
+        }
+
+        if(key === "t" && !e.repeat) {
+            speed = Math.max(speed - SPEED_CHANGE, MIN_SPEED);
+            console.log("FreeCam speed:", speed);
+        }
 
         if(key in keys) {
             keys[key] = true;
@@ -173,7 +194,7 @@ export function createFreeCamera({camera, canvas, onDisable}) {
 
             camera.position.addScaledVector(
                 movement,
-                SPEED * dt
+                speed * dt
             );
         }
     }
@@ -183,6 +204,10 @@ export function createFreeCamera({camera, canvas, onDisable}) {
         disable,
         toggle,
         update,
+
+        get speed() {
+            return speed;
+        },
 
         get enabled() {
             return enabled;

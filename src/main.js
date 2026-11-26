@@ -1,16 +1,15 @@
-
 import * as THREE from 'three';
 import gsap from 'gsap';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 // Custom imps
-import {interiors} from './environments/interiors.js';
-import {createModelManager } from './modelManager.js'
-import {createTransitions} from './transitions.js';
-import {createHover} from './hover.js';
-import {playSound, setHoverSound} from './sound.js';
-import {createFreeCamera} from './freeCam.js';
+import {interiors} from './world/interiors.js';
+import {createModelManager } from './systems/modelManager.js'
+import {createTransitions} from './systems/transitions.js';
+import {createHover} from './interactions/hover.js';
+import {playSound, setHoverSound} from './systems/sound.js';
+import {createFreeCamera} from './cameras/freeCam.js';
 
 import './style.scss'
 

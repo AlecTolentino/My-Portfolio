@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
-import {playSound} from './sound.js';
+import {playSound} from '../systems/sound.js';
 
 // MAIN VARS
 const HOVER_TAG = "Hover";

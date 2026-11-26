@@ -22,12 +22,19 @@ export const interiors = {
 
     skills: {
         path: '/world_models/Interiors/badminton_interior.glb',
-        camera: null
+
+        camera: {
+            position: new THREE.Vector3(-5.36, 2.4, 5.73),
+            target: new THREE.Vector3(1.83, 0.07, -1.22)
+        }
     },
 
     contact: {
         path: '/world_models/Interiors/telephone_interior.glb',
-        camera: null
+        camera: {
+            position: new THREE.Vector3(0.07, 1.52, 3.53),
+            target: new THREE.Vector3(0.098, 0.807, -6.444)
+        }
     }
 
 };
