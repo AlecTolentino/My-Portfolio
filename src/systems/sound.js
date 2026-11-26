@@ -5,39 +5,8 @@ const sounds = {
     click: new Audio('/Assets/Audio/click.mp3')
 };
 
-
 // Set when hover is played
 let hoverSoundEnabled = true;
-let unlockedAudio = false;
-
-function unlockAudio(){
-
-    if(unlockedAudio) return;
-
-    Object.values(sounds).forEach(sound => {
-
-        sound.muted = true;
-        const promise = sound.play();
-
-        if(promise){
-
-            promise.then(() => {
-
-                sound.pause();
-                sound.currentTime = 0;
-                sound.muted = false;
-
-            }).catch(() => {
-                sound.muted = false;
-            });
-        }
-    });
-    unlockedAudio = true;
-};
-
-// Unlock audio on first interaction
-window.addEventListener('pointerdown', unlockAudio, {once:true});
-window.addEventListener('keydown', unlockAudio, {once:true});
 
 export function playSound(name){
 
@@ -52,7 +21,7 @@ export function playSound(name){
     }
 
     // Don't restart hover sound if it's already playing
-   // if(name === 'hover' && !sound.paused) return;
+    // if(name === 'hover' && !sound.paused) return;
 
     sound.currentTime = 0;
     sound.play().catch(() => {});
