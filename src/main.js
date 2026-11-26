@@ -5,6 +5,7 @@ import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 // Custom imps
+import {interiors} from './environments/interiors.js';
 import {createModelManager } from './modelManager.js'
 import {createTransitions} from './transitions.js';
 import {createHover} from './hover.js';
@@ -118,24 +119,6 @@ const entranceLocations = {
     }
 };
 
-// Interior model paths
-const interiorLocations = {
-    
-    projects: '/world_models/Interiors/arcade_interior.glb',
-    experience: '/world_models/Interiors/music_interior.glb',
-    skills: '/world_models/Interiors/badminton_interior.glb',
-    contact: '/world_models/Interiors/telephone_interior.glb'
-};
-
-// Interior camera positions 
-const interiorCameraPositions = {
-
-    projects: new THREE.Vector3(0, 0, 0),
-    experience: new THREE.Vector3(0, 0, 0),
-    skills: new THREE.Vector3(0, 0, 0),
-    contact: new THREE.Vector3(0, 0, 0)
-};
-
 const socials = {
     "Github": "https://github.com/AlecTolentino",
     "Linkedin": "https://www.linkedin.com/in/alec-tolentino-bd2004",
@@ -159,7 +142,7 @@ const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
 const hover = createHover({scene, camera});
 
 // Free camera helper
-const DEV_MODE = false;
+const DEV_MODE = true;
 const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
 
     onDisable: () => {
@@ -549,6 +532,49 @@ function registerRaycastObjects(model){
     });
 }
 
+// TEMP: Test interior loading
+window.testInterior = async function(location = 'projects'){
+
+    const interiorConfig = interiors[location];
+
+    if(!interiorConfig){
+        console.warn("No interior found for:", location);
+        return;
+    }
+
+    try{
+
+        // Load and display interior
+        const interior = await modelManager.enterInterior(
+            location,
+            interiorConfig.path
+        );
+
+        // Register interior interactions without particles
+        hover.registerModel(interior, {particles: false});
+        hover.setActiveModel(interior);
+
+        // Switch raycasting to interior
+        registerRaycastObjects(interior);
+
+        // Apply the interior's camera settings
+        const cameraSettings = interiorConfig.camera;
+
+        if(cameraSettings){
+            camera.position.copy(cameraSettings.position);
+            camera.lookAt(cameraSettings.target);
+        }
+
+        isAtEntrance = true;
+
+        console.log("Interior loaded:", location);
+
+    }
+    catch(error){
+        console.error("Failed to load interior:", error);
+    }
+};
+
 // Cam position helper  -------------------------------------------------------------------------------------
 const DEBUC_CAM = true;
 
@@ -562,7 +588,10 @@ if(DEBUC_CAM){
 
             x: Number(camera.position.x.toFixed(2)),
             y: Number(camera.position.y.toFixed(2)),
-            z: Number(camera.position.z.toFixed(2))
+            z: Number(camera.position.z.toFixed(2)),
+            rotationX: Number(THREE.MathUtils.radToDeg(camera.rotation.x).toFixed(2)),
+            rotationY: Number(THREE.MathUtils.radToDeg(camera.rotation.y).toFixed(2)),
+            rotationZ: Number(THREE.MathUtils.radToDeg(camera.rotation.z).toFixed(2))
 
         });
 

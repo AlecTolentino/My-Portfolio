@@ -4,7 +4,7 @@ import * as THREE from 'three';
 export function createFreeCamera({camera, canvas, onDisable}) {
 
     // SETTINGS
-    const SPEED = 40;
+    const SPEED = 20;
     const SENSITIVITY = 0.002;
 
     // STATE
@@ -54,8 +54,6 @@ export function createFreeCamera({camera, canvas, onDisable}) {
         camera.rotation.set(pitch, yaw, 0, "YXZ");
 
         resetKeys();
-
-        console.log("Free camera enabled. Click the scene to control the mouse.");
     }
 
     function disable() {
