@@ -20,6 +20,7 @@ canvas.style.touchAction = "none";
 
 // Loading screen elements
 const loadingScreen = document.querySelector('#loading-screen');
+const loadingScene = document.querySelector('.loading-scene');
 const loadingStatus = document.querySelector('#loading-status');
 const loadingPercent = document.querySelector('#loading-percent');
 const loadingBarFill = document.querySelector('#loading-bar-fill');
@@ -326,6 +327,36 @@ startButton.addEventListener('click', () => {
     loadingScreen.classList.add('hidden');
 });
 
+// Render objects
+function render() {
+
+    // Time since last frame
+    const now = performance.now();
+    const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+
+    updateLoadingScreen(dt);
+    lastFrameTime = now;
+
+    if(freeCamera?.enabled){
+
+        freeCamera.update(dt);
+    }
+    else{
+
+        // Update street camera movement
+        streetCam.update(dt);
+    }
+
+    // Update hover animations and particles
+    const hoverBlocked = (streetCam.isNavigating && performance.now() > hoverHoldUntil) || (isDragging && dragged) || freeCamera?.enabled;
+    hover.update(hoverBlocked);
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(render);
+};
+
+// Loading screen visuals --------------------------------------------------------------------------------
+
 // Update loading screen
 function updateLoadingScreen(dt){
 
@@ -359,33 +390,21 @@ function updateLoadingScreen(dt){
     }
 };
 
-// Render objects
-function render() {
+const LOADING_ROTATION = 8;
+const LOADING_PERSPECTIVE = 700;
 
-    // Time since last frame
-    const now = performance.now();
-    const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+// Spatial loading screen effect
+loadingScreen.addEventListener('pointermove', (e) => {
+    if (loadingScreen.classList.contains('ready')) return;
 
-    updateLoadingScreen(dt);
-    lastFrameTime = now;
+    const x = (e.clientX / window.innerWidth - 0.5) * 2;
+    const y = (e.clientY / window.innerHeight - 0.5) * 2;
 
-    if(freeCamera?.enabled){
+    loadingScene.style.transform = `perspective(${LOADING_PERSPECTIVE}px) rotateX(${-y * LOADING_ROTATION}deg) rotateY(${x * LOADING_ROTATION}deg)`;
+});
 
-        freeCamera.update(dt);
-    }
-    else{
-
-        // Update street camera movement
-        streetCam.update(dt);
-    }
-
-    // Update hover animations and particles
-    const hoverBlocked = (streetCam.isNavigating && performance.now() > hoverHoldUntil) || (isDragging && dragged) || freeCamera?.enabled;
-    hover.update(hoverBlocked);
-
-    renderer.render(scene, camera);
-    requestAnimationFrame(render);
-};
+// Reset when pointer leaves
+loadingScreen.addEventListener('pointerleave', () => {loadingScene.style.transform = `perspective(${LOADING_PERSPECTIVE}px) rotateX(0deg) rotateY(0deg)`;});
 
 render();
 createShuttleAnimation();

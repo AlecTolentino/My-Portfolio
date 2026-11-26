@@ -71,6 +71,17 @@ html, body {
       animation: loading-enter 0.9s ease both;
     }
 
+    .loading-scene {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transform-style: preserve-3d;
+      transform-origin: center;;
+      will-change: transform;
+      transition: transform 0.15s ease-out;
+    }
+
     .loading-label {
       font-size: 11px;
       line-height: 1.8;
