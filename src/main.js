@@ -1,13 +1,18 @@
-
 import * as THREE from 'three';
-import gsap from 'gsap';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {createHover} from './hover.js';
-import {playSound, setHoverSound} from './sound.js';
-import {createFreeCamera} from './freeCam.js';
-
 import './style.scss'
+
+// Custom imps
+import {createStreetCamera} from './cameras/streetCam.js';
+import {createFreeCamera} from './cameras/freeCam.js';
+import {createHover} from './interactions/hover.js';
+import {createRaycasting} from './interactions/raycasting.js';
+import {createModelManager } from './systems/modelManager.js'
+import {playSound, setHoverSound} from './systems/sound.js';
+import {createTransitions} from './systems/transitions.js';
+import {interiors} from './world/interiors.js';
+
 
 const canvas = document.querySelector("#experience-canvas")
 canvas.style.touchAction = "none";
@@ -23,47 +28,18 @@ const sizes = {
     height: window.innerHeight
 }
 
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
 let street = null;
-
-const rayCastObjects = [];
-
-// Camera settings
-const FOV = 68
-const PITCH = THREE.MathUtils.degToRad(12);
-const YAW = THREE.MathUtils.degToRad(0.85);
-let curCamPos = 315
-let targetCamPos = 315
-
-// Cam speed vars etc
-const SMOOTH = 3.6;
-const DRAG_SPEED = 0.25;
-const MOBILE_DRAG_SPEED = 0.6;
-const SCROLL_SPEED = 0.3
-const KEY_MOVE = 40;
 let lastFrameTime = performance.now();
-
-// Road vars
-const roadStart = 90
-const roadEnd = 2255
-const roadLen = roadEnd - roadStart
 
 // Movement vars
 let isDragging = false;
 let dragged = false;
-let isNavMove = false
-let isEntranceMove = false;
-let isAtEntrance = false;
+const DRAG_SPEED = 0.25;
+const MOBILE_DRAG_SPEED = 0.6;
 
 // Phone control
 const HOVER_HOLD = 600;
 let hoverHoldUntil = 0;
-
-// Hover animation plays and then speeds up
-let navDest = 0;
-const navTrip = {pos: 0};
-const NAV_RELEASE = 10;
 
 // Pointer positions
 let startX = 0
@@ -123,30 +99,26 @@ const socials = {
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xbfd8f0);
 
-const camera = new THREE.PerspectiveCamera(FOV, 1, 3, 850);
-const forward = new THREE.Vector3(
-    -Math.cos(PITCH) * Math.cos(YAW),
-    -Math.sin(PITCH),
-    -Math.cos(PITCH) * Math.sin(YAW)
-);
+const camera = new THREE.PerspectiveCamera(68, 1, 3, 850);
+
+// Street cam controller
+const streetCam = createStreetCamera({camera, locations, entranceLocations, onNavigate: () => playSound("click")});
 
 // Raycasting
+const raycasting = createRaycasting({camera, canvas});
 const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
 
 // Hover
 const hover = createHover({scene, camera});
 
 // Free camera helper
-const DEV_MODE = false;
+const DEV_MODE = true;
 const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
 
     onDisable: () => {
 
-        // Return normal camera navigation to the current Z position
-        curCamPos = -camera.position.z;
-        targetCamPos = curCamPos;
-
-        camera.rotation.order = "XYZ";
+        // Synchronise street camera with the current camera position
+        streetCam.syncPosition();
     }
 }) : null;
 
@@ -156,21 +128,15 @@ const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
 window.addEventListener("wheel", (e) => {
 
     e.preventDefault();
-    if(isNavMove || freeCamera?.enabled) return;
-
-    gsap.killTweensOf(navTrip);
-    targetCamPos += e.deltaY * SCROLL_SPEED;
-
-    // Prevent leaving street
-    targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
+    if(streetCam.isNavigating || freeCamera?.enabled) return;
+    streetCam.scroll(e.deltaY);
 
 }, {passive:false});
 
 // Immediate Mouse/touch click
 window.addEventListener("pointerdown", (e) => {
 
-    if(isNavMove || freeCamera?.enabled) return;
-    gsap.killTweensOf(navTrip);
+    if(streetCam.isNavigating || freeCamera?.enabled) return;
 
     dragged = false
     isDragging = true;
@@ -183,9 +149,9 @@ window.addEventListener("pointerdown", (e) => {
 window.addEventListener("pointermove", (e) => {
 
     // Hover detection
-    if(street && !isDragging && !isNavMove && !freeCamera?.enabled && e.pointerType !== "touch") {
+    if(street && !isDragging && !streetCam.isNavigating && !freeCamera?.enabled && e.pointerType !== "touch") {
 
-        const target = detectHover(e);
+        const target = raycasting.detectHover(e);
 
         // Update hovered object
         hover.setHovered(target);
@@ -193,21 +159,16 @@ window.addEventListener("pointermove", (e) => {
     }
 
     // Prevent unnecessary movement
-    if(isNavMove || freeCamera?.enabled || !isDragging) return;
+    if(streetCam.isNavigating || freeCamera?.enabled || !isDragging) return;
 
     // Finger movement threshold
     const threshold = e.pointerType === "touch" ? 10 : 3;
-
-    if(Math.abs(e.clientX - startX) > threshold) {
-        dragged = true;
-    }
+    if(Math.abs(e.clientX - startX) > threshold) dragged =  true;
 
     const delta = lastXPos - e.clientX;
     const speed = e.pointerType === "touch" ? MOBILE_DRAG_SPEED : DRAG_SPEED;
 
-    targetCamPos += delta * speed;
-    targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
-
+    streetCam.drag(delta * speed);
     lastXPos = e.clientX;
 });
 
@@ -215,9 +176,9 @@ window.addEventListener("pointermove", (e) => {
 window.addEventListener("pointerup", (e) => {
 
     isDragging = false;
-    if(!street || dragged || isNavMove || freeCamera?.enabled) return;
+    if(!street || dragged || streetCam.isNavigating || freeCamera?.enabled) return;
 
-    const target = detectHover(e);
+    const target = raycasting.detectHover(e);
 
     if(e.pointerType === "touch") {
 
@@ -256,15 +217,10 @@ window.addEventListener("pointercancel", () => {
 window.addEventListener("keydown", (e) => {
 
     // Prevent unnecessary movement
-    if(isNavMove || freeCamera?.enabled) return;
+    if(streetCam.isNavigating || freeCamera?.enabled) return;
 
-    gsap.killTweensOf(navTrip);
-
-    if(e.key === "ArrowRight") targetCamPos += KEY_MOVE;
-    if(e.key === "ArrowLeft") targetCamPos -= KEY_MOVE;
-
-    // Prevent leaving street
-    targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
+    if(e.key === "ArrowRight") streetCam.moveBy(1);
+    if(e.key === "ArrowLeft") streetCam.moveBy(-1);
 
 }, {passive:false});
 
@@ -304,6 +260,12 @@ dracoLoader.setDecoderPath("/draco/");
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
+// Model manager
+const modelManager = createModelManager({scene, gltfLoader});
+
+// Scene transition
+const transition = createTransitions({duration: 0.6});
+
 // TEMP DAYLIGHT ------------------------------------------------------------------------------------
 
 const skyFill = new THREE.HemisphereLight(0xeaf4ff, 0x77717a, 1.3);
@@ -318,20 +280,13 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 
     street = gltf.scene;
 
-    // Remember clickable items
-    street.traverse((child) => {
+    // Register clickable objects
+    raycasting.registerModel(street);
 
-        if(child.name.includes("Raycaster")) {
+    // Register street with model manager
+    modelManager.setStreet(street);
 
-            rayCastObjects.push(child);
-
-            child.traverse((part) => {
-                part.userData.target = child;
-            });
-        }
-    });
-
-    scene.add(street);
+    // Register street hover interactions
     hover.setStreet(street);
 });
 
@@ -343,23 +298,18 @@ function render() {
     const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
     lastFrameTime = now;
 
-    if(!freeCamera?.enabled && !isEntranceMove && !isAtEntrance){
+    if(freeCamera?.enabled){
 
-        // Update normal camera position
-        curCamPos += (targetCamPos - curCamPos) * (1 - Math.exp(-SMOOTH * dt));
-
-        camera.position.set(210, 72, -curCamPos);
-        const lookTarget = camera.position.clone().addScaledVector(forward, 100);
-        camera.lookAt(lookTarget);
-    }
-    else if(freeCamera?.enabled){
-
-        // Update free camera movement
         freeCamera.update(dt);
+    }
+    else{
+
+        // Update street camera movement
+        streetCam.update(dt);
     }
 
     // Update hover animations and particles
-    const hoverBlocked = (isNavMove && performance.now() > hoverHoldUntil) || (isDragging && dragged) || freeCamera?.enabled;
+    const hoverBlocked = (streetCam.isNavigating && performance.now() > hoverHoldUntil) || (isDragging && dragged) || freeCamera?.enabled;
     hover.update(hoverBlocked);
 
     renderer.render(scene, camera);
@@ -380,133 +330,57 @@ function getEntrancePos(location){
 
 // HELPERS ------------------------------------------------------------------------------------------------------------
 
-// Control camera movement
-const camEase = (t) => {
-
-    // Acceleration 40%
-    const c = 0.35;
-
-    if(t < c) return 0.5 * (t / c) ** 2;
-
-    // 0 to 1 through the slow down phase
-    const s = (t - c) / (1 - c);
-
-    return 0.5 + 0.5 * (1 - (1 - s) ** 2.1);
-};
-
 // Move camera to locations
 window.navTo = function(location){
 
-    playSound("click");
-
-    // Location not found
-    if(!(location in locations)){
-        console.warn("No location for:", location);
-        return;
-    }
-
-    // Free cam warnung
     if(freeCamera?.enabled){
         console.warn("Disable free camera before using navTo.");
         return;
     }
 
-    document.body.style.cursor = "default";
-
-    isNavMove = true;
-    isEntranceMove = false;
-    isAtEntrance = false;
-
-    // Return cam to  normal pos
-    camera.position.set(210, 72, -curCamPos);
-
-    const lookTarget = camera.position.clone().addScaledVector(forward, 100);
-    camera.lookAt(lookTarget);
-
-    // Navigat to location
-    navDest = locations[location];
-    navTrip.pos = curCamPos;
-
-    gsap.killTweensOf(navTrip);
-    gsap.killTweensOf(camera.position);
-
-    // Longer trips take longer 
-    const duration = THREE.MathUtils.clamp(Math.abs(navDest - curCamPos) / 600,0.9,1.6);
-
-    // PART 1 of travel----------------------------------------------------------------------------------------------------
-    gsap.to(navTrip,{
-
-        pos: navDest,
-        duration,
-        ease: camEase,
-
-        onUpdate: () => {
-
-            // Move both together
-            curCamPos = navTrip.pos;
-            targetCamPos = navTrip.pos;
-        },
-
-        onComplete: () => {
-
-            // Land on sign
-            curCamPos = navDest;
-            targetCamPos = navDest;
-            
-            // Check if entrance + guard
-            const entrance = entranceLocations[location];
-            if(!entrance){
-                isNavMove = false;
-                return;
-            }
-
-            // PART 2 of travel ----------------------------------------------------------------------------------------
-            isEntranceMove = true;
-
-            gsap.to(camera.position,{
-
-                x: entrance.x,
-                y: entrance.y,
-                z: entrance.z,
-
-                duration: 1,
-                ease: "power2.inOut",
-
-                onUpdate: () =>{
-
-                    // Keep looking at same direction
-                    camera.lookAt(
-                        entrance.x + forward.x * 100,
-                        entrance.y + forward.y * 100,
-                        entrance.z + forward.z * 100
-
-                    )
-                },
-                onComplete: () => {
-
-                    isEntranceMove = false;
-                    isAtEntrance = true;
-                    isNavMove = false;
-                }
-            });
-        }
-    });
+    streetCam.navigateTo(location);
 };
 
-// Detect mouse hover over clickable object
-function detectHover(e){
+// TEMP: Test interior loading
+window.testInterior = async function(location = 'projects'){
 
-    const rect = canvas.getBoundingClientRect();
+    const interiorConfig = interiors[location];
 
-    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    if(!interiorConfig){
+        console.warn("No interior found for:", location);
+        return;
+    }
 
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects(rayCastObjects, true);
+    try{
 
-    if(!hits.length) return null;
+        // Load and display interior
+        const interior = await modelManager.enterInterior(
+            location,
+            interiorConfig.path
+        );
 
-    return hits[0].object.userData.target || null;
+        // Register interior interactions without particles
+        hover.registerModel(interior, {particles: false});
+        hover.setActiveModel(interior);
+
+        // Switch raycasting to interior
+        raycasting.registerModel(interior);
+
+        // Apply the interior's camera settings
+        const cameraSettings = interiorConfig.camera;
+
+        if(cameraSettings){
+            camera.position.copy(cameraSettings.position);
+            camera.lookAt(cameraSettings.target);
+        }
+
+        streetCam.setAtEntrance(true);
+        console.log("Interior loaded:", location);
+
+    }
+    catch(error){
+        console.error("Failed to load interior:", error);
+    }
 };
 
 // Cam position helper  -------------------------------------------------------------------------------------
@@ -522,7 +396,10 @@ if(DEBUC_CAM){
 
             x: Number(camera.position.x.toFixed(2)),
             y: Number(camera.position.y.toFixed(2)),
-            z: Number(camera.position.z.toFixed(2))
+            z: Number(camera.position.z.toFixed(2)),
+            rotationX: Number(THREE.MathUtils.radToDeg(camera.rotation.x).toFixed(2)),
+            rotationY: Number(THREE.MathUtils.radToDeg(camera.rotation.y).toFixed(2)),
+            rotationZ: Number(THREE.MathUtils.radToDeg(camera.rotation.z).toFixed(2))
 
         });
 
