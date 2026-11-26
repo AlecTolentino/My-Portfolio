@@ -12,10 +12,24 @@ import {createModelManager } from './systems/modelManager.js'
 import {playSound, setHoverSound} from './systems/sound.js';
 import {createTransitions} from './systems/transitions.js';
 import {interiors} from './world/interiors.js';
+import {createShuttleAnimation} from './systems/shuttleAnimation.js';
 
 
 const canvas = document.querySelector("#experience-canvas")
 canvas.style.touchAction = "none";
+
+// Loading screen elements
+const loadingScreen = document.querySelector('#loading-screen');
+const loadingStatus = document.querySelector('#loading-status');
+const loadingPercent = document.querySelector('#loading-percent');
+const loadingBarFill = document.querySelector('#loading-bar-fill');
+const startButton = document.querySelector('#start-button');
+
+// Loading progress
+let loadingComplete = false;
+let loadingReady = false;
+let displayedProgress = 0;
+const loadingStartTime = performance.now();
 
 // Stop text selection, the long-press menu and the magnifier loupe on touch screens
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -128,7 +142,7 @@ const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
 window.addEventListener("wheel", (e) => {
 
     e.preventDefault();
-    if(streetCam.isNavigating || freeCamera?.enabled) return;
+    if(streetCam.isNavigating || freeCamera?.enabled || !loadingReady) return;
     streetCam.scroll(e.deltaY);
 
 }, {passive:false});
@@ -136,7 +150,7 @@ window.addEventListener("wheel", (e) => {
 // Immediate Mouse/touch click
 window.addEventListener("pointerdown", (e) => {
 
-    if(streetCam.isNavigating || freeCamera?.enabled) return;
+    if(streetCam.isNavigating || freeCamera?.enabled || !loadingReady) return;
 
     dragged = false
     isDragging = true;
@@ -147,6 +161,8 @@ window.addEventListener("pointerdown", (e) => {
 
 // Mouse move
 window.addEventListener("pointermove", (e) => {
+
+    if (!loadingReady) return;
 
     // Hover detection
     if(street && !isDragging && !streetCam.isNavigating && !freeCamera?.enabled && e.pointerType !== "touch") {
@@ -217,7 +233,7 @@ window.addEventListener("pointercancel", () => {
 window.addEventListener("keydown", (e) => {
 
     // Prevent unnecessary movement
-    if(streetCam.isNavigating || freeCamera?.enabled) return;
+    if(streetCam.isNavigating || freeCamera?.enabled || !loadingReady) return;
 
     if(e.key === "ArrowRight") streetCam.moveBy(1);
     if(e.key === "ArrowLeft") streetCam.moveBy(-1);
@@ -288,7 +304,61 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 
     // Register street hover interactions
     hover.setStreet(street);
+    loadingComplete = true;
+
+}, (progress) => {
+
+
+}, (error) => {
+
+    console.error('Failed to load main street', error);
+    loadingStatus.textContent = 'LOADING FAILED';
+
 });
+
+// Start experience when button is clicked
+startButton.addEventListener('click', () => {
+
+    if (!loadingReady || startButton.disabled) return;
+
+    // User interaction allows browser audio playback
+    playSound('click');
+    loadingScreen.classList.add('hidden');
+});
+
+// Update loading screen
+function updateLoadingScreen(dt){
+
+    const elapsed = (performance.now() - loadingStartTime) / 1000;
+
+    // Gradually reach 90% over at least 5 seconds
+    let targetProgress = Math.min(90, (elapsed / 0.7) * 90);
+    if(loadingComplete && elapsed >= 0.7) targetProgress = 100;
+    
+    // Smoothly approach the target progress
+    displayedProgress += (targetProgress - displayedProgress) * Math.min(1, dt * 3);
+
+    const progress = Math.floor(displayedProgress);
+
+    loadingBarFill.style.width = `${progress}%`;
+    loadingPercent.textContent = `${progress}%`;
+
+    // Update loading status
+    if (loadingComplete && displayedProgress >= 89) loadingStatus.textContent = 'FINALISING EXPERIENCE';
+
+    // Reveal the button when loading is finished
+    if (loadingComplete && displayedProgress >= 99.5 && !loadingReady) {
+
+        loadingReady = true;
+
+        loadingBarFill.style.width = '100%';
+        loadingPercent.textContent = '100%';
+        loadingStatus.textContent = 'EXPERIENCE READY';
+
+        startButton.disabled = false;
+        loadingScreen.classList.add('ready');
+    }
+};
 
 // Render objects
 function render() {
@@ -296,6 +366,8 @@ function render() {
     // Time since last frame
     const now = performance.now();
     const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+
+    updateLoadingScreen(dt);
     lastFrameTime = now;
 
     if(freeCamera?.enabled){
@@ -317,6 +389,7 @@ function render() {
 };
 
 render();
+createShuttleAnimation();
 
 // Gets entrance positions
 function getEntrancePos(location){
@@ -405,6 +478,8 @@ if(DEBUC_CAM){
 
     }, 3000);
 }
+
+
 
 
 // 7:29:12,
