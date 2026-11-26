@@ -1,6 +1,6 @@
 import gsap from 'gsap';
 
-export function createTransition({duration = 0.6} = {}){
+export function createTransitions({duration = 0.6} = {}){
 
     let isTransitioning = false;
 

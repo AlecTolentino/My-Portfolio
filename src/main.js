@@ -3,6 +3,10 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+
+// Custom imps
+import {createModelManager } from './modelManager.js'
+import {createTransitions} from './transitions.js';
 import {createHover} from './hover.js';
 import {playSound, setHoverSound} from './sound.js';
 import {createFreeCamera} from './freeCam.js';
@@ -112,6 +116,24 @@ const entranceLocations = {
         y: 37,
         z: -1611.75
     }
+};
+
+// Interior model paths
+const interiorLocations = {
+    
+    projects: '/world_models/Interiors/arcade_interior.glb',
+    experience: '/world_models/Interiors/music_interior.glb',
+    skills: '/world_models/Interiors/badminton_interior.glb',
+    contact: '/world_models/Interiors/telephone_interior.glb'
+};
+
+// Interior camera positions 
+const interiorCameraPositions = {
+
+    projects: new THREE.Vector3(0, 0, 0),
+    experience: new THREE.Vector3(0, 0, 0),
+    skills: new THREE.Vector3(0, 0, 0),
+    contact: new THREE.Vector3(0, 0, 0)
 };
 
 const socials = {
@@ -304,6 +326,12 @@ dracoLoader.setDecoderPath("/draco/");
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
+// Model manager
+const modelManager = createModelManager({scene, gltfLoader});
+
+// Scene transition
+const transition = createTransitions({duration: 0.6});
+
 // TEMP DAYLIGHT ------------------------------------------------------------------------------------
 
 const skyFill = new THREE.HemisphereLight(0xeaf4ff, 0x77717a, 1.3);
@@ -318,20 +346,13 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 
     street = gltf.scene;
 
-    // Remember clickable items
-    street.traverse((child) => {
+    // Register clickable objects
+    registerRaycastObjects(street);
 
-        if(child.name.includes("Raycaster")) {
+    // Register street with model manager
+    modelManager.setStreet(street);
 
-            rayCastObjects.push(child);
-
-            child.traverse((part) => {
-                part.userData.target = child;
-            });
-        }
-    });
-
-    scene.add(street);
+    // Register street hover interactions
     hover.setStreet(street);
 });
 
@@ -508,6 +529,25 @@ function detectHover(e){
 
     return hits[0].object.userData.target || null;
 };
+
+// Detection of raycast objs
+function registerRaycastObjects(model){
+
+    // Clear objects belonging to previous model
+    rayCastObjects.length = 0;
+
+    model.traverse((child) => {
+
+        if(child.name.includes("Raycaster")){
+
+            rayCastObjects.push(child);
+
+            child.traverse((part) => {
+                part.userData.target = child;
+            });
+        }
+    });
+}
 
 // Cam position helper  -------------------------------------------------------------------------------------
 const DEBUC_CAM = true;
