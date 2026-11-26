@@ -1,8 +1,11 @@
+
 import * as THREE from 'three';
 import gsap from 'gsap';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createHover} from './hover.js';
+import {playSound, setHoverSound} from './sound.js';
+import {createFreeCamera} from './freeCam.js';
 
 import './style.scss'
 
@@ -13,12 +16,13 @@ canvas.style.touchAction = "none";
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("selectstart", (e) => e.preventDefault());
 
-// MAIN VARS  ------------------------------------------------------------------------------------------------------------
+// MAIN VARS ------------------------------------------------------------------------------------------------------------
 const sizes = {
 
     width: window.innerWidth,
     height: window.innerHeight
 }
+
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 let street = null;
@@ -29,9 +33,10 @@ const rayCastObjects = [];
 const FOV = 68
 const PITCH = THREE.MathUtils.degToRad(12);
 const YAW = THREE.MathUtils.degToRad(0.85);
-let  curCamPos = 315
+let curCamPos = 315
 let targetCamPos = 315
 
+// Cam speed vars etc
 const SMOOTH = 3.6;
 const DRAG_SPEED = 0.25;
 const MOBILE_DRAG_SPEED = 0.6;
@@ -48,22 +53,24 @@ const roadLen = roadEnd - roadStart
 let isDragging = false;
 let dragged = false;
 let isNavMove = false
+let isEntranceMove = false;
+let isAtEntrance = false;
 
-// phone control
+// Phone control
 const HOVER_HOLD = 600;
-let hoverHoldUntil = 0;                     // timestamp until which hover may keep playing
+let hoverHoldUntil = 0;
 
-// hover animation plays and then speeds up
-let navDest = 0;           
-const navTrip = {pos: 0};       
-const NAV_RELEASE = 10;                 // give control back this close to the destination
+// Hover animation plays and then speeds up
+let navDest = 0;
+const navTrip = {pos: 0};
+const NAV_RELEASE = 10;
 
 // Pointer positions
 let startX = 0
 let lastXPos = 0;
 
 // Locations
-const locations ={
+const locations = {
     start: 314,
     projects: 592,
     experience: 854,
@@ -72,10 +79,43 @@ const locations ={
     tools_platforms: 1575,
     contact: 1605,
     more_coming: 1927
-}
+};
+
+const loc_entrance_coords = {
+    x: 61.02,
+    y: 40,
+    zOffset: -2.34
+};
+
+const entranceLocations = {
+
+    // Standard buildings
+    projects: getEntrancePos('projects'),
+    experience: getEntrancePos('experience'),
+    skills: getEntrancePos('skills'),
+
+    // Special cases
+    about: {
+        x: -20.69,
+        y: 33.53,
+        z: -1371.03
+    },
+
+    tools_platforms: {
+        x: 2.72,
+        y: 29,
+        z: -1573.91
+    },
+
+    contact: {
+        x: 16.57,
+        y: 37,
+        z: -1611.75
+    }
+};
 
 const socials = {
-    "Github":  "https://github.com/AlecTolentino",
+    "Github": "https://github.com/AlecTolentino",
     "Linkedin": "https://www.linkedin.com/in/alec-tolentino-bd2004",
 };
 
@@ -90,22 +130,35 @@ const forward = new THREE.Vector3(
     -Math.cos(PITCH) * Math.sin(YAW)
 );
 
-// raycasting
+// Raycasting
 const locationKeys = Object.keys(locations).sort((a,b) => b.length - a.length);
 
 // Hover
 const hover = createHover({scene, camera});
 
-// EVENT LISTENERS ------------------------------------------------------------------------------------------------------
-// Wheel scrolling
-window.addEventListener("wheel", (e) =>{
+// Free camera helper
+const DEV_MODE = false;
+const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
 
-    // Prevent unecessary movement
-    e.preventDefault()
-    if(isNavMove) return;
+    onDisable: () => {
+
+        // Return normal camera navigation to the current Z position
+        curCamPos = -camera.position.z;
+        targetCamPos = curCamPos;
+
+        camera.rotation.order = "XYZ";
+    }
+}) : null;
+
+// EVENT LISTENERS ------------------------------------------------------------------------------------------------------
+
+// Wheel scrolling
+window.addEventListener("wheel", (e) => {
+
+    e.preventDefault();
+    if(isNavMove || freeCamera?.enabled) return;
 
     gsap.killTweensOf(navTrip);
-
     targetCamPos += e.deltaY * SCROLL_SPEED;
 
     // Prevent leaving street
@@ -116,9 +169,7 @@ window.addEventListener("wheel", (e) =>{
 // Immediate Mouse/touch click
 window.addEventListener("pointerdown", (e) => {
 
-    // Prevent unecessary movement
-    if(isNavMove) return;
-
+    if(isNavMove || freeCamera?.enabled) return;
     gsap.killTweensOf(navTrip);
 
     dragged = false
@@ -128,11 +179,11 @@ window.addEventListener("pointerdown", (e) => {
     lastXPos = e.clientX;
 });
 
-// Mouse / finger move
+// Mouse move
 window.addEventListener("pointermove", (e) => {
 
-    // Hover detection 
-    if(street && !isDragging && !isNavMove && e.pointerType !== "touch"){
+    // Hover detection
+    if(street && !isDragging && !isNavMove && !freeCamera?.enabled && e.pointerType !== "touch") {
 
         const target = detectHover(e);
 
@@ -141,20 +192,22 @@ window.addEventListener("pointermove", (e) => {
         document.body.style.cursor = target ? "pointer" : "default";
     }
 
-    // Prevent unecessary movement
-    if(isNavMove || !isDragging) return;
+    // Prevent unnecessary movement
+    if(isNavMove || freeCamera?.enabled || !isDragging) return;
 
     // Finger movement threshold
     const threshold = e.pointerType === "touch" ? 10 : 3;
-    if(Math.abs(e.clientX - startX) > threshold) dragged = true;
+
+    if(Math.abs(e.clientX - startX) > threshold) {
+        dragged = true;
+    }
 
     const delta = lastXPos - e.clientX;
-
-    // Move camera + Prevent leaving street
     const speed = e.pointerType === "touch" ? MOBILE_DRAG_SPEED : DRAG_SPEED;
-    targetCamPos += delta * speed
-    ;
+
+    targetCamPos += delta * speed;
     targetCamPos = THREE.MathUtils.clamp(targetCamPos, roadStart, roadEnd);
+
     lastXPos = e.clientX;
 });
 
@@ -162,16 +215,17 @@ window.addEventListener("pointermove", (e) => {
 window.addEventListener("pointerup", (e) => {
 
     isDragging = false;
-
-    // Click / tap if no drag
-    if(!street || dragged || isNavMove) return;
+    if(!street || dragged || isNavMove || freeCamera?.enabled) return;
 
     const target = detectHover(e);
 
-    // Touch: highlight whatever was tapped 
-    if(e.pointerType === "touch") hover.setHovered(target);
+    if(e.pointerType === "touch") {
 
-    // Ignore if nothing clickable was hit
+        setHoverSound(false);
+        hover.setHovered(target);
+        setHoverSound(true);
+    }
+
     if(!target) return;
 
     const name = target.name.toLowerCase();
@@ -179,13 +233,12 @@ window.addEventListener("pointerup", (e) => {
 
     if(!loc) return;
 
-    if(e.pointerType === "touch"){
+    if(e.pointerType === "touch") {
 
-        // Keep hover animation alive while camera starts moving
         hoverHoldUntil = performance.now() + HOVER_HOLD;
         navTo(loc);
     }
-    else{
+    else {
 
         hover.setHovered(null);
         navTo(loc);
@@ -194,6 +247,7 @@ window.addEventListener("pointerup", (e) => {
 
 // Drag reset for touch
 window.addEventListener("pointercancel", () => {
+
     isDragging = false;
     dragged = false;
 });
@@ -201,8 +255,8 @@ window.addEventListener("pointercancel", () => {
 // Arrow keys
 window.addEventListener("keydown", (e) => {
 
-    // Prevent uncessary movement
-    if(isNavMove) return;
+    // Prevent unnecessary movement
+    if(isNavMove || freeCamera?.enabled) return;
 
     gsap.killTweensOf(navTrip);
 
@@ -216,10 +270,14 @@ window.addEventListener("keydown", (e) => {
 
 // VISUALS ----------------------------------------------------------------------------------------------------
 
-const renderer = new THREE.WebGLRenderer({canvas, antialias: true, logarithmicDepthBuffer: true});
+const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    logarithmicDepthBuffer: true
+});
 
 // Resize display port
-function resize(){
+function resize() {
 
     const rect = canvas.getBoundingClientRect();
 
@@ -229,7 +287,7 @@ function resize(){
     camera.aspect = sizes.width / sizes.height;
     camera.updateProjectionMatrix();
 
-    // Cap the pixel ratio: a phone with a ratio of 3 would otherwise draw 9x the pixels
+    // Cap the pixel ratio
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(sizes.width, sizes.height, false);
 };
@@ -239,29 +297,37 @@ window.addEventListener("resize", resize);
 window.visualViewport?.addEventListener("resize", resize);
 
 // Loaders -----------------------------------------------------------------------------------------------------------------------
+
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath("/draco/");
 
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
-// TEMP DAYLIGHT  ------------------------------------------------------------------------------------
+// TEMP DAYLIGHT ------------------------------------------------------------------------------------
+
 const skyFill = new THREE.HemisphereLight(0xeaf4ff, 0x77717a, 1.3);
 const sun = new THREE.DirectionalLight(0xfff1df, 1.8);
+
 sun.position.set(100, 200, 80);
 scene.add(skyFill, sun);
 
-// Load main street ------------------------------------------------------------------------------------
+// Street  visuals etc ------------------------------------------------------------------------------------
+
 gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
+
     street = gltf.scene;
 
     // Remember clickable items
     street.traverse((child) => {
 
-        if(child.name.includes("Raycaster")){
+        if(child.name.includes("Raycaster")) {
 
             rayCastObjects.push(child);
-            child.traverse((part) => {part.userData.target = child;});
+
+            child.traverse((part) => {
+                part.userData.target = child;
+            });
         }
     });
 
@@ -270,27 +336,30 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 });
 
 // Render objects
-function render(){
+function render() {
 
-    // TIme since last frame
+    // Time since last frame
     const now = performance.now();
     const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
     lastFrameTime = now;
 
-    // Udpate camera pos
-    curCamPos += (targetCamPos - curCamPos) * (1- Math.exp(-SMOOTH * dt));
+    if(!freeCamera?.enabled && !isEntranceMove && !isAtEntrance){
 
-    if(isNavMove && Math.abs(navDest - curCamPos) < NAV_RELEASE){   // TEMP: remove once signs open buildings
-        isNavMove = false;     
+        // Update normal camera position
+        curCamPos += (targetCamPos - curCamPos) * (1 - Math.exp(-SMOOTH * dt));
+
+        camera.position.set(210, 72, -curCamPos);
+        const lookTarget = camera.position.clone().addScaledVector(forward, 100);
+        camera.lookAt(lookTarget);
+    }
+    else if(freeCamera?.enabled){
+
+        // Update free camera movement
+        freeCamera.update(dt);
     }
 
-    camera.position.set(210, 72, -curCamPos);
-    const lookTarget = camera.position.clone().addScaledVector(forward, 100);
-    camera.lookAt(lookTarget);
-
     // Update hover animations and particles
-    // While travelling, hover is blocked - except for a short hold after touch tap
-    const hoverBlocked = (isNavMove && performance.now() > hoverHoldUntil) || (isDragging && dragged);
+    const hoverBlocked = (isNavMove && performance.now() > hoverHoldUntil) || (isDragging && dragged) || freeCamera?.enabled;
     hover.update(hoverBlocked);
 
     renderer.render(scene, camera);
@@ -299,43 +368,77 @@ function render(){
 
 render();
 
-// HELPERS ----------------------------------------------------------
+// Gets entrance positions
+function getEntrancePos(location){
 
-// Control cam movement
+    return {
+        x: loc_entrance_coords.x,
+        y: loc_entrance_coords.y,
+        z: -locations[location] + loc_entrance_coords.zOffset
+    }
+};
+
+// HELPERS ------------------------------------------------------------------------------------------------------------
+
+// Control camera movement
 const camEase = (t) => {
 
-     //  Acceleration 40%
-    const c = 0.35;   
+    // Acceleration 40%
+    const c = 0.35;
 
-    if(t < c) return 0.5 * (t / c) ** 2;    
+    if(t < c) return 0.5 * (t / c) ** 2;
 
-     // 0 to 1 through the slow down phase
-    const s = (t - c) / (1 - c);           
-    return 0.5 + 0.5 * (1 - (1 - s) ** 2.1); 
+    // 0 to 1 through the slow down phase
+    const s = (t - c) / (1 - c);
+
+    return 0.5 + 0.5 * (1 - (1 - s) ** 2.1);
 };
 
 // Move camera to locations
 window.navTo = function(location){
 
+    playSound("click");
+
+    // Location not found
     if(!(location in locations)){
         console.warn("No location for:", location);
         return;
     }
 
-    document.body.style.cursor = "default";
-    isNavMove = true;
+    // Free cam warnung
+    if(freeCamera?.enabled){
+        console.warn("Disable free camera before using navTo.");
+        return;
+    }
 
+    document.body.style.cursor = "default";
+
+    isNavMove = true;
+    isEntranceMove = false;
+    isAtEntrance = false;
+
+    // Return cam to  normal pos
+    camera.position.set(210, 72, -curCamPos);
+
+    const lookTarget = camera.position.clone().addScaledVector(forward, 100);
+    camera.lookAt(lookTarget);
+
+    // Navigat to location
     navDest = locations[location];
     navTrip.pos = curCamPos;
+
     gsap.killTweensOf(navTrip);
+    gsap.killTweensOf(camera.position);
 
-    // Longer trips take longer
-    const duration = THREE.MathUtils.clamp(Math.abs(navDest - curCamPos) / 600, 0.9, 1.6);
+    // Longer trips take longer 
+    const duration = THREE.MathUtils.clamp(Math.abs(navDest - curCamPos) / 600,0.9,1.6);
 
-    gsap.to(navTrip, {
+    // PART 1 of travel----------------------------------------------------------------------------------------------------
+    gsap.to(navTrip,{
+
         pos: navDest,
         duration,
-        ease: camEase,           // slow start, fast middle, soft landing
+        ease: camEase,
 
         onUpdate: () => {
 
@@ -349,7 +452,43 @@ window.navTo = function(location){
             // Land on sign
             curCamPos = navDest;
             targetCamPos = navDest;
-            isNavMove = false;       // TEMP: remove once signs open buildings
+            
+            // Check if entrance + guard
+            const entrance = entranceLocations[location];
+            if(!entrance){
+                isNavMove = false;
+                return;
+            }
+
+            // PART 2 of travel ----------------------------------------------------------------------------------------
+            isEntranceMove = true;
+
+            gsap.to(camera.position,{
+
+                x: entrance.x,
+                y: entrance.y,
+                z: entrance.z,
+
+                duration: 1,
+                ease: "power2.inOut",
+
+                onUpdate: () =>{
+
+                    // Keep looking at same direction
+                    camera.lookAt(
+                        entrance.x + forward.x * 100,
+                        entrance.y + forward.y * 100,
+                        entrance.z + forward.z * 100
+
+                    )
+                },
+                onComplete: () => {
+
+                    isEntranceMove = false;
+                    isAtEntrance = true;
+                    isNavMove = false;
+                }
+            });
         }
     });
 };
@@ -370,19 +509,25 @@ function detectHover(e){
     return hits[0].object.userData.target || null;
 };
 
-// Check camera pos
-// let lastLoggedPos = -1;
+// Cam position helper  -------------------------------------------------------------------------------------
+const DEBUC_CAM = true;
 
-// setInterval(() => {
-//     const roundedPos = Math.round(curCamPos);
+if(DEBUC_CAM){
 
-//     if (roundedPos !== lastLoggedPos) {
+    setInterval(() => {
 
-//         console.log("Camera:", roundedPos);
-//         lastLoggedPos = roundedPos;
-//     }
+        if(!freeCamera?.enabled) return;
 
-// }, 1000);
+        console.log({
+
+            x: Number(camera.position.x.toFixed(2)),
+            y: Number(camera.position.y.toFixed(2)),
+            z: Number(camera.position.z.toFixed(2))
+
+        });
+
+    }, 3000);
+}
 
 
 // 7:29:12,

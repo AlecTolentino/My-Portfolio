@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
+import {playSound} from './sound.js';
 
 // MAIN VARS
 const HOVER_TAG = "Hover";
@@ -606,13 +607,14 @@ export function createHover({scene, camera}){
     // HOVER IN / OUT --------------------------------------------------------------------------------------------------
     function hoverIn(record){
 
+        playSound('hover');
         const state = record.state;
 
         // Stop any previous animations
         gsap.killTweensOf(state);
         activeObjs.add(record);
 
-        // Fade the idle sway out so it doesn't fight the hover animation
+        // Fade the idle sway out 
         gsap.to(state, {
             sway: 0,
             duration: 0.25,
