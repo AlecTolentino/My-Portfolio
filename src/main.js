@@ -33,7 +33,7 @@ let loadingComplete = false;
 let loadingReady = false;
 let displayedProgress = 0;
 
-const LOAD_DURATION = 2;
+const LOAD_DURATION = 0;
 const FINAL_PROGRESS_DURATION = 0.8;
 let finalProgressStart = null;
 const loadingStartTime = performance.now();
@@ -133,7 +133,12 @@ scene.background = new THREE.Color(0xbfd8f0);
 const camera = new THREE.PerspectiveCamera(68, 1, 3, 850);
 
 // Street cam controller
-const streetCam = createStreetCamera({camera, locations, entranceLocations, onNavigate: () => playSound("click")});
+const streetCam = createStreetCamera({camera, locations, entranceLocations, 
+
+    onNavigate: () => playSound("click"),
+    onEntranceStart: () => transition.fadeToBlack(),
+    onEntrance: (location) => enterInterior(location)
+});
 
 // Raycasting
 const raycasting = createRaycasting({camera, canvas});
@@ -373,7 +378,7 @@ function render() {
     requestAnimationFrame(render);
 };
 
-// Loading screen visuals --------------------------------------------------------------------------------
+// Loading screen visuals -----------------------------------------------------------------------------------------------------------------
 
 // Update loading screen
 function updateLoadingScreen(dt){
@@ -487,23 +492,16 @@ window.navTo = function(location){
     streetCam.navigateTo(location);
 };
 
-// TEMP: Test interior loading
-window.testInterior = async function(location = 'projects'){
+// Enter interior
+async function enterInterior(location){
 
     const interiorConfig = interiors[location];
-
-    if(!interiorConfig){
-        console.warn("No interior found for:", location);
-        return;
-    }
+    if(!interiorConfig || modelManager.isInside) return;
 
     try{
 
         // Load and display interior
-        const interior = await modelManager.enterInterior(
-            location,
-            interiorConfig.path
-        );
+        const interior = await modelManager.enterInterior(location, interiorConfig.path);
 
         // Register interior interactions without particles
         hover.registerModel(interior, {particles: false});
@@ -512,22 +510,21 @@ window.testInterior = async function(location = 'projects'){
         // Switch raycasting to interior
         raycasting.registerModel(interior);
 
-        // Apply the interior's camera settings
-        const cameraSettings = interiorConfig.camera;
+        // Apply interior camera settings
+        camera.position.copy(interiorConfig.camera.position);
+        camera.lookAt(interiorConfig.camera.target);
 
-        if(cameraSettings){
-            camera.position.copy(cameraSettings.position);
-            camera.lookAt(cameraSettings.target);
-        }
+        // Reveal interior
+        await transition.fadeFromBlack();
 
-        streetCam.setAtEntrance(true);
-        console.log("Interior loaded:", location);
-
+        console.log('Entered interior:', location);
     }
     catch(error){
-        console.error("Failed to load interior:", error);
+        console.error('Failed to enter interior:', error);
+        await transition.fadeFromBlack();
     }
-};
+}
+
 
 // Cam position helper  -------------------------------------------------------------------------------------
 const DEBUC_CAM = true;
