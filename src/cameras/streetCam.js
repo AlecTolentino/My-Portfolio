@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 
 export function createStreetCamera({camera,locations,entranceLocations,
-    onNavigate = () => {}
+    onNavigate = () => {},
+    onEntranceStart = () => {},
+    onEntrance = () => {}
 }){
 
     // Camera settings
@@ -34,6 +36,8 @@ export function createStreetCamera({camera,locations,entranceLocations,
 
     let navDest = 0;
     const navTrip = {pos: 0};
+
+    const ENTRANCE_FADE_DELAY = 0.4;
 
     // Camera movement easing
     const camEase = (t) => {
@@ -152,7 +156,20 @@ export function createStreetCamera({camera,locations,entranceLocations,
                 // Part 2: Move towards building entrance ------------------------------------------------------------------------
                 isEntranceMove = true;
 
-                gsap.to(camera.position, {
+                const entranceTimeline = gsap.timeline({
+
+                     // Mark navigation as complete once the entrance is reached
+                    onComplete: () => {
+
+                        isEntranceMove = false;
+                        isAtEntrance = true;
+                        isNavigating = false;
+
+                        onEntrance(location);
+                    }
+                });
+
+                entranceTimeline.to(camera.position, {
 
                     x: entrance.x,
                     y: entrance.y,
@@ -163,22 +180,17 @@ export function createStreetCamera({camera,locations,entranceLocations,
 
                     // Keep the camera looking in the same direction during the approach
                     onUpdate: () => {
-
+                        
                         camera.lookAt(
                             entrance.x + forward.x * 100,
                             entrance.y + forward.y * 100,
                             entrance.z + forward.z * 100
                         );
-                    },
-
-                    // Mark navigation as complete once the entrance is reached
-                    onComplete: () => {
-
-                        isEntranceMove = false;
-                        isAtEntrance = true;
-                        isNavigating = false;
                     }
                 });
+
+                // Fade 0.6 seconds into cam movement
+                entranceTimeline.call(() => onEntranceStart(location), [], ENTRANCE_FADE_DELAY);
             }
         });
     }
