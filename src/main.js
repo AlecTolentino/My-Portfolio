@@ -14,7 +14,6 @@ import {createTransitions} from './systems/transitions.js';
 import {interiors} from './world/interiors.js';
 import {createShuttleAnimation} from './systems/shuttleAnimation.js';
 
-
 const canvas = document.querySelector("#experience-canvas")
 canvas.style.touchAction = "none";
 
@@ -25,6 +24,8 @@ const loadingStatus = document.querySelector('#loading-status');
 const loadingPercent = document.querySelector('#loading-percent');
 const loadingBarFill = document.querySelector('#loading-bar-fill');
 const startButton = document.querySelector('#start-button');
+
+loadingScreen.style.visibility = 'visible';
 
 // Loading progress
 let experienceStarted = false;
@@ -178,14 +179,14 @@ window.addEventListener("pointerdown", (e) => {
 // Mouse move
 window.addEventListener("pointermove", (e) => {
 
-    if(!experienceStarted) {
+    if(!experienceStarted){
         hover.setHovered(null);
         document.body.style.cursor = "default";
         return;
     }
 
     // Hover detection
-    if(street && !isDragging && !streetCam.isNavigating && !freeCamera?.enabled && e.pointerType !== "touch") {
+    if(street && !isDragging && !streetCam.isNavigating && !freeCamera?.enabled && e.pointerType !== "touch"){
 
         const target = raycasting.detectHover(e);
 
@@ -211,14 +212,14 @@ window.addEventListener("pointermove", (e) => {
 // Immediate Mouse/touch release
 window.addEventListener("pointerup", (e) => {
 
-    if (!experienceStarted) return;
+    if(!experienceStarted) return;
 
     isDragging = false;
     if(!street || dragged || streetCam.isNavigating || freeCamera?.enabled) return;
 
     const target = raycasting.detectHover(e);
 
-    if(e.pointerType === "touch") {
+    if(e.pointerType === "touch"){
 
         setHoverSound(false);
         hover.setHovered(target);
@@ -232,12 +233,12 @@ window.addEventListener("pointerup", (e) => {
 
     if(!loc) return;
 
-    if(e.pointerType === "touch") {
+    if(e.pointerType === "touch"){
 
         hoverHoldUntil = performance.now() + HOVER_HOLD;
         navTo(loc);
     }
-    else {
+    else{
 
         hover.setHovered(null);
         navTo(loc);
@@ -264,11 +265,7 @@ window.addEventListener("keydown", (e) => {
 
 // VISUALS ----------------------------------------------------------------------------------------------------
 
-const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: true,
-    logarithmicDepthBuffer: true
-});
+const renderer = new THREE.WebGLRenderer({canvas, antialias: true, logarithmicDepthBuffer: true});
 
 // Resize display port
 function resize() {
@@ -328,7 +325,7 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
     hover.setStreet(street);
     loadingComplete = true;
 
-}, (progress) => {
+}, (_) => {
 
 
 }, (error) => {
@@ -342,7 +339,6 @@ gltfLoader.load('/world_models/Main_street.glb', (gltf) => {
 startButton.addEventListener('click', () => {
 
     if (!loadingReady || startButton.disabled) return;
-
     experienceStarted = true;
 
     playSound('click');
@@ -411,7 +407,6 @@ function updateLoadingScreen(dt){
     // Update progress until 90%
     if(finalProgressStart === null) displayedProgress = targetProgress;
     
-
     // Wait until duration and model loading are both complete
     if(loadingComplete && timeProgress >= 1 && finalProgressStart === null){
 
@@ -439,6 +434,7 @@ function updateLoadingScreen(dt){
 
             startButton.disabled = false;
             loadingScreen.classList.add('ready');
+            startButton.style.visibility = 'visible';
         }
     }
 
