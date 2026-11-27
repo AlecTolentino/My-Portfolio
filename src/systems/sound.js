@@ -1,33 +1,78 @@
-const sounds = {
+const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+const audioContext = new AudioContextClass();
 
-    hover: new Audio('/Assets/Audio/hover.mp3'),
-    zoom: new Audio('/Assets/Audio/whoosh.mp3'),
-    click: new Audio('/Assets/Audio/click.mp3')
+const soundFiles = {
+    hover: '/Assets/Audio/hover.mp3',
+    zoom: '/Assets/Audio/whoosh.mp3',
+    click: '/Assets/Audio/click.mp3'
 };
 
-// Set when hover is played
+const buffers = {};
 let hoverSoundEnabled = true;
 
-export function playSound(name){
+// Load and decode all sounds immediately
+const loadPromises = Object.entries(soundFiles).map(async ([name, path]) => {
+    try{
+        const response = await fetch(path);
+        if(!response.ok) throw new Error(`Failed to load ${path}`);
 
+        const data = await response.arrayBuffer();
+        buffers[name] = await audioContext.decodeAudioData(data);
+    }
+    catch(error){
+        console.error(`Audio loading error (${name}):`, error);
+    }
+});
+
+// Unlock audio during a user interaction
+export function unlockAudio(){
+    if(audioContext.state === 'suspended'){
+        return audioContext.resume();
+    }
+
+    return Promise.resolve();
+};
+
+// Play decoded sound
+function playBuffer(name){
+
+    const buffer = buffers[name];
+    if(!buffer) return;
+
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    source.start(0);
+}
+
+// Play sound
+export function playSound(name){
     if(name === 'hover' && !hoverSoundEnabled) return;
 
-    const sound = sounds[name];
-
-    if(!sound){
-
+    // Sound not found
+    if(!soundFiles[name]) {
         console.warn(`Sound not found: ${name}`);
         return;
     }
 
-    // Don't restart hover sound if it's already playing
-    // if(name === 'hover' && !sound.paused) return;
+    // Wait for decoding if necessary
+    if(!buffers[name]){const promise = loadPromises.find(
+        
+        (_, index) =>Object.keys(soundFiles)[index] === name);
 
-    sound.currentTime = 0;
-    sound.play().catch(() => {});
+        promise?.then(() => {if(audioContext.state === 'running') playBuffer(name);});
+        return;
+    }
+
+    if(audioContext.state === 'suspended') {
+        audioContext.resume().then(() => playBuffer(name)).catch(() => {});
+        return;
+    }
+
+    playBuffer(name);
 };
 
-// Enable / disable hover sounds
+// Setter
 export function setHoverSound(enabled){
     hoverSoundEnabled = enabled;
-}
+};

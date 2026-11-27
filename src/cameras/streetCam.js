@@ -190,7 +190,7 @@ export function createStreetCamera({camera,locations,entranceLocations,
                 });
 
                 // Fade 0.6 seconds into cam movement
-                entranceTimeline.call(onEntranceStart, [], ENTRANCE_FADE_DELAY);
+                entranceTimeline.call(() => onEntranceStart(location), [], ENTRANCE_FADE_DELAY);
             }
         });
     }

@@ -9,10 +9,10 @@ import {createFreeCamera} from './cameras/freeCam.js';
 import {createHover} from './interactions/hover.js';
 import {createRaycasting} from './interactions/raycasting.js';
 import {createModelManager } from './systems/modelManager.js'
-import {playSound, setHoverSound} from './systems/sound.js';
+import {createShuttleAnimation} from './systems/shuttleAnimation.js';
+import {playSound, setHoverSound, unlockAudio} from './systems/sound.js';
 import {createTransitions} from './systems/transitions.js';
 import {interiors} from './world/interiors.js';
-import {createShuttleAnimation} from './systems/shuttleAnimation.js';
 
 const canvas = document.querySelector("#experience-canvas")
 canvas.style.touchAction = "none";
@@ -136,7 +136,7 @@ const camera = new THREE.PerspectiveCamera(68, 1, 3, 850);
 const streetCam = createStreetCamera({camera, locations, entranceLocations, 
 
     onNavigate: () => playSound("click"),
-    onEntranceStart: () => transition.fadeToBlack(),
+    onEntranceStart: (location) => {if(interiors[location]) transition.fadeToBlack();},
     onEntrance: (location) => enterInterior(location)
 });
 
@@ -158,7 +158,7 @@ const freeCamera = DEV_MODE ?  createFreeCamera({camera, canvas,
     }
 }) : null;
 
-// EVENT LISTENERS ------------------------------------------------------------------------------------------------------
+// INTERACT EVENT LISTENERS ------------------------------------------------------------------------------------------------------
 
 // Wheel scrolling
 window.addEventListener("wheel", (e) => {
@@ -346,7 +346,7 @@ startButton.addEventListener('click', () => {
     if (!loadingReady || startButton.disabled) return;
     experienceStarted = true;
 
-    playSound('click');
+    unlockAudio().then(() => playSound('click'));
     loadingScreen.classList.add('hidden');
 });
 
@@ -523,8 +523,7 @@ async function enterInterior(location){
         console.error('Failed to enter interior:', error);
         await transition.fadeFromBlack();
     }
-}
-
+};
 
 // Cam position helper  -------------------------------------------------------------------------------------
 const DEBUC_CAM = true;
