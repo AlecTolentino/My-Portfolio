@@ -33,7 +33,7 @@ let loadingComplete = false;
 let loadingReady = false;
 let displayedProgress = 0;
 
-const LOAD_DURATION = 0;
+const LOAD_DURATION = 2;
 const FINAL_PROGRESS_DURATION = 0.8;
 let finalProgressStart = null;
 const loadingStartTime = performance.now();
